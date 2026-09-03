@@ -1,21 +1,25 @@
 # Upstream-bound fixes
 
-Five fixes to real bugs, none of them ACPI-specific — they matter in
-DeviceTree mode too. They are kept here in kernel submission form, separately
-from the ACPI series, because they belong upstream rather than in this port.
+Four fixes to real bugs in the staging meson vdec driver, none of them
+ACPI-specific — they matter in DeviceTree mode too. They are kept here in
+kernel submission form, separately from the ACPI series, because they belong
+upstream rather than in this port.
 
 | Patch | Fixes | Upstream status |
 |---|---|---|
-| `0001` | arm64/efi: EFI runtime-services regression under software PAN | **Submitted, awaiting merge** |
 | `0002` | meson-vdec: mpeg12 canvas-at-start collapse | Not submitted |
 | `0003` | meson-vdec: VP9 esparser throttle `u32` underflow | Not submitted |
 | `0004` | meson-vdec: spurious pre-negotiation `EPOLLERR` | Not submitted |
 | `0005` | meson-vdec: h264 first-GOP corruption | Not submitted |
 
 Each patch repeats its own status below its `---` tear line, so the
-information travels with the file.
+information travels with the file. The numbering starts at `0002` because
+`0001` has already landed — see below.
 
-## `0001` — arm64/efi SW-PAN
+## `0001` — arm64/efi SW-PAN: merged, and removed from this directory
+
+**This one is upstream now**, so the submission-form copy has been deleted
+rather than left here to be sent a second time.
 
 Under `CONFIG_ARM64_SW_TTBR0_PAN`, a voluntary reschedule between the EFI mm
 being installed into `TTBR0_EL1` and the firmware call resumes with another
@@ -23,30 +27,40 @@ task's `TTBR0_EL1`, and the next `efi_mm` access takes a level 0 translation
 fault. On a VIM3 that is an oops in `efi_call_rts` within a few hundred
 thousand runtime calls.
 
-**The history matters, because the fix is not ours.** A first version — a
-different approach, keeping the runtime call non-preemptible — was posted to
-linux-efi on 2026-08-05:
+A first version — a different approach, keeping the runtime call
+non-preemptible — was posted to linux-efi on 2026-08-05:
 
-<https://lore.kernel.org/linux-efi/20260806000144.3388823-1-gus@bourg.net/T/>
+<https://lore.kernel.org/all/20260806000144.3388823-1-gus@bourg.net/>
 
 Will Deacon declined that approach and proposed the minimal reorder instead,
-moving `__efi_fpsimd_begin()` above `uaccess_ttbr0_enable()`:
+moving `__efi_fpsimd_begin()` above `uaccess_ttbr0_enable()`. That is what
+landed, in **Linux v7.3-rc1**:
 
-<https://lore.kernel.org/linux-efi/30c5499e-8041-4e39-933b-c5220d53be77@app.fastmail.com/T/>
+```
+commit e98a9d0146372b046d863164025a66ab4488b972
+Author: Will Deacon <will@kernel.org>
 
-**That suggestion is the diff in `0001`** — hence the `Suggested-by:` trailer.
-Our v1 was reverted rather than stacked on top, and a `Tested-by:` for the
-reorder was sent to the list on 2026-08-10, backed by 6.4 M runtime calls
-across both description modes with zero faults.
+    arm64/efi: Avoid voluntary preemption with efi_mm installed
 
-This is carried as `patches/linux/0005` and should be dropped once it reaches
-stable. The 6.18 series does not carry it at all: the regression it fixes is
-v6.19+, which is why there is no `patches/linux/6.18/0005`.
+    Reported-by: Gus Bourg <gus@bourg.net>
+    Tested-by: Gus Bourg <gus@bourg.net>
+    Reviewed-by: Ard Biesheuvel <ardb@kernel.org>
+    Fixes: a5baf582f4c0 ("arm64/efi: Call EFI runtime services without
+           disabling preemption")
+```
+
+**The fix is Will Deacon's work.** The bug report, the reproduction, the
+ftrace analysis and the validation soak are mine; the change itself is his.
+
+It is still carried as `patches/linux/0005` for older kernels — see that
+patch's own note. In short: **needed for 6.19 ≤ kernel < 7.3, drop it on
+v7.3 or later.** The upstream commit carries no `Cc: stable`, so it will not
+reach stable trees on its own.
 
 ## `0002`–`0005` — meson-vdec
 
-Four fixes to the staging meson vdec driver, all root-caused on hardware and
-validated with a GStreamer 1.26 stateful-decode flow on G12B:
+Four fixes, all root-caused on hardware and validated with a GStreamer 1.26
+stateful-decode flow on G12B:
 
 - **`0002`** mpeg12 canvas-at-start collapse — defer codec start until both
   queues are streaming.
@@ -63,13 +77,10 @@ patch is ever sent — it is not a claim that it was.
 
 ## If you want to send one
 
-Base `0001` on a tree containing `a5baf582f4c0` (v6.19 or later). Recipients
-come from `scripts/get_maintainer.pl`; Ard Biesheuvel authored the commit that
-introduced the regression, and Catalin Marinas and Will Deacon acked it, so
-all three have direct context.
+Recipients come from `scripts/get_maintainer.pl`.
 
 ```sh
-git am 0001-*.patch
+git am 0002-*.patch
 ./scripts/checkpatch.pl --strict -g HEAD
 git format-patch -1 -o outgoing/
 ```

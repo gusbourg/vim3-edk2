@@ -73,6 +73,19 @@ Suggested-by: Will Deacon <will@kernel.org>
 Assisted-by: Claude:claude-fable-5 ftrace
 Signed-off-by: Gus Bourg <gus@bourg.net>
 ---
+MERGED UPSTREAM. This landed in Linux v7.3-rc1 as commit e98a9d014637
+("arm64/efi: Avoid voluntary preemption with efi_mm installed"), authored by
+Will Deacon, with Reported-by/Tested-by: Gus Bourg and Reviewed-by: Ard
+Biesheuvel.
+
+  Keep this patch only for 6.19 <= kernel < 7.3. The regression was introduced
+  by a5baf582f4c0, first released in v6.19, and is fixed from v7.3-rc1 on.
+  Drop it entirely on v7.3 or later -- applying it there will conflict.
+
+  Note the upstream commit carries NO Cc: stable, so it will not flow into
+  stable trees automatically. If you run a 7.0/7.1/7.2 stable kernel you will
+  keep needing this patch unless someone requests a backport.
+
  arch/arm64/kernel/efi.c | 11 +++++++++--
  1 file changed, 9 insertions(+), 2 deletions(-)
 

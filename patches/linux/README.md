@@ -13,7 +13,7 @@ the facts as `_DSD` scalars.
 | 0001 | mmc: meson-gx | SDC0/SDB0/SDA0 (eMMC/SD/SDIO) |
 | 0002 | thermal: amlogic | CTMP + DDRT (zone name + trips from match data; DDR = monitor + critical only, its DT cooling target is the GPU devfreq cdev which is absent under ACPI) |
 | 0003 | i2c: meson | I2CA (+ RTC0/FAN0 children) |
-| 0005 | arm64/efi | (SW-PAN preemption fix v2: FPSIMD claim before EFI-mm install, per Will Deacon — PENDING UPSTREAM, drop when it lands in stable; replaces the v1 non-preemptible approach) |
+| 0005 | arm64/efi | (SW-PAN preemption fix: FPSIMD claim before EFI-mm install. **Will Deacon's fix**, now UPSTREAM as `e98a9d014637` in v7.3-rc1. Keep for 6.19 <= kernel < 7.3, drop on v7.3+; no `Cc: stable` upstream, so stable trees will not get it automatically. Replaces our v1 non-preemptible approach.) |
 | 0006 | net: stmmac | ETH0 (Phytium ACPI glue, 6.18-family).  **Not our work** - by Ricardo Pardini <ricardo@pardini.net> for Armbian |
 | 0007 | drm/panfrost | GPU0 (Mali G52; _CCA=One is load-bearing) |
 | 0008 | drm/meson | VPU0 (KMS master; component match by fwnode) |

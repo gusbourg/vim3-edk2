@@ -138,15 +138,31 @@ Capsule update is supported via `Vim3FmpDxe`.
 
 ## Recovery
 
-The VIM3 can always be returned to USB MaskROM mode: connect USB-C and press
-the Function button three times within two seconds. A candidate can then be
-tested from RAM without any persistent write:
+The VIM3 can always be returned to USB MaskROM mode. With the board **powered
+off** and a data-capable USB-C cable to the host, hold the **Function** button,
+apply power, and keep holding for about three seconds. Confirm on the host:
+
+```sh
+lsusb -d 1b8e:c003        # Amlogic GX-CHIP
+```
+
+If that device does not appear, the board is not in MaskROM. A charge-only
+USB-C cable is the usual reason. (Triple-pressing Function within two seconds
+on a running board also works, but the hold-through-power-on sequence above is
+the one these instructions were tested with.)
+
+A candidate can then be tested from RAM with no persistent write at all:
 
 ```sh
 sudo env PYTHONPATH="$PWD/third_party/pyamlboot" \
-  python3 third_party/pyamlboot/boot-g12.py \
+  python3 third_party/pyamlboot/boot-g12.py --timeout 10 \
   out/RELEASE/fip/u-boot.bin
 ```
+
+A successful transfer ends with `[BL2 END]`, and the board comes up in the UEFI
+boot manager. Note this takes the **unwrapped** `u-boot.bin`, not `.sd.bin`.
+Power-cycle to get your previous bootloader back. **Do this before writing
+anything** — if the firmware runs from RAM it will run from flash.
 
 This is the reason bricking is difficult: the BootROM path does not depend on
 anything you can overwrite. `recover-vim3-uboot.sh` will write a known-good
@@ -201,7 +217,7 @@ states the facts as `_DSD` scalars.
 
 | Patch | What it fixes |
 |---|---|
-| `0005` | arm64/efi: claim FPSIMD state before installing the EFI mm. Fixes an EFI runtime-services regression under software PAN. **The fix is Will Deacon's**, proposed on linux-efi; submitted and pending upstream — drop it once it lands. Not needed on 6.18: the regression is v6.19+. |
+| `0005` | arm64/efi: claim FPSIMD state before installing the EFI mm. Fixes an EFI runtime-services regression under software PAN. **The fix is Will Deacon's** and is now upstream — `e98a9d014637` in **v7.3-rc1**. Keep this patch only for **6.19 ≤ kernel < 7.3**; drop it on v7.3+. Not needed on 6.18 (the regression is v6.19+). The upstream commit has no `Cc: stable`, so it will not reach stable trees by itself. |
 | `0013` | xhci-plat: mark streams broken on G12 DWC3 hosts (the UAS problem above) |
 | `0026` | meson-vdec: 64-byte aligned canvas strides. Widths that are not a multiple of 64 (DVD 720, VCD 352) sheared into columns on zero-copy display. |
 | `0030` | drm/meson venc: generate wide DMT modes in the CEA frame phase |
@@ -224,16 +240,17 @@ ACPI machine driver replacing the OF-only `axg-card`).
 
 ### `patches/upstream/` — not ACPI-specific
 
-Five fixes to real bugs that also affect DeviceTree mode, kept in kernel
-submission form because they belong upstream rather than in this port.
+Four fixes to real bugs that also affect DeviceTree mode, kept in kernel
+submission form because they belong upstream rather than in this port: the
+mpeg12 canvas-at-start collapse, a VP9 esparser `u32` underflow, spurious
+pre-negotiation `EPOLLERR`, and re-pulsing H.264 pipeline resets. **None have
+been submitted** to linux-media. Each patch states its own status below its
+`---` tear line.
 
-The arm64 EFI runtime fix (`0001`) **has been submitted** and is awaiting
-merge — and the diff itself is Will Deacon's, proposed on the list in place of
-our first attempt; see that directory's README for the thread. The four
-meson-vdec fixes (mpeg12 canvas-at-start collapse, a VP9 esparser `u32`
-underflow, spurious pre-negotiation `EPOLLERR`, and re-pulsing H.264 pipeline
-resets) have **not** been submitted. Each patch states its own status below
-its `---` tear line.
+A fifth, the arm64/efi SW-PAN fix, **has landed upstream** in Linux
+**v7.3-rc1** as `e98a9d014637`, so its submission-form copy has been removed
+from that directory. The numbering there now starts at `0002`. See that
+directory's README for the whole thread.
 
 ### `patches/userspace/ffmpeg/` — needed for hardware decode in ffmpeg/Kodi
 
@@ -291,13 +308,13 @@ of them are not mine:
 | `patches/linux/0006` | Ricardo Pardini `<ricardo@pardini.net>` |
 
 A sixth case is not visible in a `From:` line, because the kernel does not
-record it that way: **the diff in `patches/linux/0005` and
-`patches/upstream/0001` is Will Deacon's**, not mine. I posted a different fix
-for the same bug, he proposed the simpler reorder in review, and I reverted
-mine in favour of his. The patches are authored by me and carry
-`Suggested-by: Will Deacon <will@kernel.org>` — which is the correct trailer
-for exactly this situation, but it understates things, so it is said plainly
-here.
+record it that way: **the diff in `patches/linux/0005` is Will Deacon's**, not
+mine. I posted a different fix for the same bug, he proposed the simpler
+reorder in review, and I reverted mine in favour of his. It is now upstream as
+`e98a9d014637`, authored by him, crediting me as reporter and tester — which
+is the right split. Our carried patch is authored by me with
+`Suggested-by: Will Deacon <will@kernel.org>`, the correct trailer for this
+situation, but it understates things, so it is said plainly here.
 
 Debts worth naming explicitly, because they are other people's work and this
 port would not exist without them:
@@ -315,9 +332,10 @@ port would not exist without them:
   verbatim in `patches/linux/hevc/`; patch `0024` squashes them together
   with our G12 wiring, 10-bit MMU fixes and a use-after-free fix, and
   credits them in its commit message.
-- **The arm64/efi SW-PAN fix is Will Deacon's**, as described above. The
-  bug report, the reproduction, the ftrace work and the 6.4 M-call validation
-  are mine; the change itself is his.
+- **The arm64/efi SW-PAN fix is Will Deacon's**, as described above, and is
+  upstream in Linux v7.3-rc1 (`e98a9d014637`, reviewed by Ard Biesheuvel).
+  The bug report, the reproduction, the ftrace work and the 6.4 M-call
+  validation are mine; the change itself is his.
 - **The display bring-up leaned on Fuchsia's** BSD-3-Clause Amlogic display
   and DesignWare HDMI drivers (Copyright The Fuchsia Authors). No Fuchsia
   code is reproduced — the sequences were reimplemented against the

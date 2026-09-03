@@ -44,10 +44,11 @@ Six things this licence does NOT cover:
     Ricardo Pardini <ricardo@pardini.net> for Armbian.  Copyright their
     authors, under the licence of the projects they patch.
 
-  * The change made by patches/linux/0005 and patches/upstream/0001
-    (arm64/efi SW-PAN), which was proposed by Will Deacon <will@kernel.org>
-    in review on the linux-efi list and is carried here with a
-    Suggested-by: trailer.  GPL-2.0, as a derivative of the Linux kernel.
+  * The change made by patches/linux/0005 (arm64/efi SW-PAN), which was
+    proposed by Will Deacon <will@kernel.org> in review on the linux-efi
+    list and is carried here with a Suggested-by: trailer.  It is now
+    upstream, authored by him, as commit e98a9d014637 in Linux v7.3-rc1.
+    GPL-2.0, as a derivative of the Linux kernel.
 
   * ffmpeg patches under patches/userspace/ffmpeg/.  ffmpeg is licensed
     LGPL-2.1-or-later, with some components GPL-2.0-or-later, and these
