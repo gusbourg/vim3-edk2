@@ -1,0 +1,48 @@
+## @file
+#  Meson G12B SPIFC-backed runtime variable FVB.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 1.30
+  BASE_NAME                      = MesonSpifcFvbDxe
+  FILE_GUID                      = 4c3f913c-6ce5-45cb-88c7-7c847e7d2d9d
+  MODULE_TYPE                    = DXE_RUNTIME_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MesonSpifcFvbDxeEntryPoint
+
+[Sources]
+  MesonSpifcFvbDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  DxeServicesTableLib
+  HobLib
+  IoLib
+  TimerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiRuntimeLib
+
+[Guids]
+  gEfiAuthenticatedVariableGuid
+  gEfiEventVirtualAddressChangeGuid
+  gEfiSystemNvDataFvGuid
+  gVariableFlashInfoHobGuid
+
+[Protocols]
+  gEfiCpuArchProtocolGuid
+  gEfiFirmwareVolumeBlockProtocolGuid
+  gMesonNorFlashProtocolGuid
+
+[Depex]
+  gEfiCpuArchProtocolGuid

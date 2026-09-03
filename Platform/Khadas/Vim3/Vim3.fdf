@@ -1,0 +1,219 @@
+#
+#  Khadas VIM3 firmware device layout.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[FD.VIM3_EFI]
+BaseAddress   = 0x01000000|gArmTokenSpaceGuid.PcdFdBaseAddress
+Size          = 0x00400000|gArmTokenSpaceGuid.PcdFdSize
+ErasePolarity = 1
+BlockSize     = 0x00001000
+NumBlocks     = 0x400
+
+# Flat BL33 entry header. x1 receives the image base and execution branches to
+# the self-relocating PrePi FV at offset 0x20000.
+0x00000000|0x00001000
+DATA = {
+  0x01, 0x00, 0x00, 0x10,
+  0xff, 0x7f, 0x00, 0x14,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x41, 0x52, 0x4d, 0x64,
+  0x00, 0x00, 0x00, 0x00
+}
+
+# Runtime-patched DTB captured from the known-good Linux boot, with the
+# four-bit eMMC policy applied by scripts/build.sh.
+0x00001000|0x0001F000
+FILE = $(VIM3_DTB_FILE)
+
+0x00020000|0x003E0000
+gArmTokenSpaceGuid.PcdFvBaseAddress|gArmTokenSpaceGuid.PcdFvSize
+FV = FVMAIN_COMPACT
+
+[FV.FvMain]
+FvNameGuid         = 3f6cf4d3-31e8-48a6-a1f2-ed380f50c95f
+BlockSize          = 0x40
+NumBlocks          = 0
+FvAlignment        = 16
+ERASE_POLARITY     = 1
+MEMORY_MAPPED      = TRUE
+STICKY_WRITE       = TRUE
+LOCK_CAP           = TRUE
+LOCK_STATUS        = TRUE
+WRITE_DISABLED_CAP = TRUE
+WRITE_ENABLED_CAP  = TRUE
+WRITE_STATUS       = TRUE
+WRITE_LOCK_CAP     = TRUE
+WRITE_LOCK_STATUS  = TRUE
+READ_DISABLED_CAP  = TRUE
+READ_ENABLED_CAP   = TRUE
+READ_STATUS        = TRUE
+READ_LOCK_CAP      = TRUE
+READ_LOCK_STATUS   = TRUE
+
+#
+# The non-emulated variable driver has a TRUE dependency expression and will
+# assert if it starts before an FVB exists.  Dispatch the services needed by
+# the SPIFC runtime driver, then the driver itself, before normal DXE
+# dispatch.  In particular, CpuDxe must precede SPIFC because GCD runtime-MMIO
+# attributes are applied through EFI_CPU_ARCH_PROTOCOL.
+#
+APRIORI DXE {
+  INF MdeModulePkg/Universal/DevicePathDxe/DevicePathDxe.inf
+  INF MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
+  INF ArmPkg/Drivers/CpuDxe/CpuDxe.inf
+  INF Silicon/Amlogic/MesonG12B/Drivers/MesonSpifcFvbDxe/MesonSpifcFvbDxe.inf
+}
+
+  INF MdeModulePkg/Core/Dxe/DxeMain.inf
+  INF MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
+  INF Platform/Khadas/Vim3/Drivers/Vim3PlatformDxe/Vim3PlatformDxe.inf
+  INF Platform/Khadas/Vim3/Drivers/Vim3McuDxe/Vim3McuDxe.inf
+  INF Platform/Khadas/Vim3/Drivers/Vim3FmpDxe/Vim3FmpDxe.inf
+  INF MdeModulePkg/Universal/EsrtFmpDxe/EsrtFmpDxe.inf
+  INF Platform/Khadas/Vim3/Drivers/MesonEthDxe/MesonEthDxe.inf
+  INF Platform/Khadas/Vim3/Drivers/MesonGpuDxe/MesonGpuDxe.inf
+  INF Platform/Khadas/Vim3/Drivers/MesonAudioDxe/MesonAudioDxe.inf
+  INF SecurityPkg/Hash2DxeCrypto/Hash2DxeCrypto.inf
+  INF SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf
+  INF edk2-platforms/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.inf
+  INF EmbeddedPkg/Drivers/FdtClientDxe/FdtClientDxe.inf
+  INF Platform/Khadas/Vim3/Drivers/MesonDisplayDxe/MesonDisplayDxe.inf
+
+  INF ArmPkg/Drivers/CpuDxe/CpuDxe.inf
+  INF MdeModulePkg/Core/RuntimeDxe/RuntimeDxe.inf
+  INF Silicon/Amlogic/MesonG12B/Drivers/MesonSpifcFvbDxe/MesonSpifcFvbDxe.inf
+  INF MdeModulePkg/Universal/FaultTolerantWriteDxe/FaultTolerantWriteDxe.inf
+  INF MdeModulePkg/Universal/SecurityStubDxe/SecurityStubDxe.inf
+  INF SecurityPkg/VariableAuthenticated/SecureBootConfigDxe/SecureBootConfigDxe.inf
+  INF MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf
+  INF MdeModulePkg/Universal/MonotonicCounterRuntimeDxe/MonotonicCounterRuntimeDxe.inf
+  INF MdeModulePkg/Universal/ResetSystemRuntimeDxe/ResetSystemRuntimeDxe.inf
+  INF MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf
+  INF MdeModulePkg/Universal/Metronome/Metronome.inf
+  INF EmbeddedPkg/RealTimeClockRuntimeDxe/RealTimeClockRuntimeDxe.inf
+
+  INF MdeModulePkg/Universal/Console/ConPlatformDxe/ConPlatformDxe.inf
+  INF MdeModulePkg/Universal/Console/ConSplitterDxe/ConSplitterDxe.inf
+  INF MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
+  INF MdeModulePkg/Universal/Console/TerminalDxe/TerminalDxe.inf
+  INF MdeModulePkg/Universal/SerialDxe/SerialDxe.inf
+  INF MdeModulePkg/Universal/HiiDatabaseDxe/HiiDatabaseDxe.inf
+  INF MdeModulePkg/Universal/SmbiosDxe/SmbiosDxe.inf
+  INF Platform/Khadas/Vim3/Drivers/Vim3SmbiosDxe/Vim3SmbiosDxe.inf
+  INF MdeModulePkg/Universal/Acpi/AcpiTableDxe/AcpiTableDxe.inf
+  INF MdeModulePkg/Universal/Acpi/AcpiPlatformDxe/AcpiPlatformDxe.inf
+  INF RuleOverride = ACPITABLE Platform/Khadas/Vim3/AcpiTables/AcpiTables.inf
+  INF RuleOverride = ACPISSDT Platform/Khadas/Vim3/AcpiTables/SsdtPcie.inf
+  INF RuleOverride = ACPISSDT Platform/Khadas/Vim3/AcpiTables/SsdtDisplay.inf
+  INF RuleOverride = ACPISSDT Platform/Khadas/Vim3/AcpiTables/SsdtAudio.inf
+  INF RuleOverride = ACPISSDT Platform/Khadas/Vim3/AcpiTables/SsdtVdec.inf
+
+  INF ArmPkg/Drivers/ArmGicDxe/ArmGicV2Dxe.inf
+  INF ArmPkg/Drivers/TimerDxe/TimerDxe.inf
+  INF MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
+
+  INF Silicon/Amlogic/MesonG12B/Drivers/MesonSdMmcDxe/MesonSdMmcDxe.inf
+  INF EmbeddedPkg/Universal/MmcDxe/MmcDxe.inf
+  INF Silicon/Amlogic/MesonG12B/Drivers/MesonUsbDxe/MesonUsbDxe.inf
+  INF MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
+  INF Silicon/Amlogic/MesonG12B/Drivers/Vim3XhciDxe/Vim3XhciDxe.inf
+  INF ArmPkg/Drivers/ArmPciCpuIo2Dxe/ArmPciCpuIo2Dxe.inf
+  INF EmbeddedPkg/Drivers/NonCoherentIoMmuDxe/NonCoherentIoMmuDxe.inf
+  INF MdeModulePkg/Bus/Pci/PciHostBridgeDxe/PciHostBridgeDxe.inf
+  INF MdeModulePkg/Bus/Pci/PciBusDxe/PciBusDxe.inf
+  INF MdeModulePkg/Bus/Pci/NvmExpressDxe/NvmExpressDxe.inf
+  INF MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
+  INF MdeModulePkg/Bus/Usb/UsbKbDxe/UsbKbDxe.inf
+  INF MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
+  INF MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf
+  INF MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf
+  INF FatPkg/EnhancedFatDxe/Fat.inf
+  INF MdeModulePkg/Universal/Disk/UdfDxe/UdfDxe.inf
+  INF MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
+
+!include NetworkPkg/Network.fdf.inc
+
+!include OvmfPkg/Include/Fdf/ShellDxe.fdf.inc
+
+!if $(SECURE_BOOT_ENABLE) == TRUE
+  #
+  # Upstream's ShellDxe.fdf.inc drops the interactive shell from the firmware
+  # volume whenever Secure Boot is built in - a full shell can load and run
+  # anything, which sidesteps the signed-boot chain.  Its ShellComponents.dsc
+  # counterpart is NOT SB-gated, so the shell is still compiled; only the FV
+  # inclusion is removed.  That left our persistent "UEFI Shell" boot option
+  # (Boot0001) pointing at an FvFile that no longer exists, so BootNext to it
+  # silently fell through - the "BootNext regression" seen after enabling SB.
+  #
+  # This is a development board that ships with Secure Boot OFF (Setup Mode)
+  # by default; the shell is a primary debugging tool here and the owner has
+  # physical console access regardless.  Re-include it under SB.
+  #
+  # SECURITY NOTE: with Secure Boot enabled AND the shell present, anyone at
+  # the console can load an unsigned image from the shell, bypassing image
+  # verification.  Acceptable for this board's threat model (no SMM/TEE
+  # isolation exists anyway); a production build wanting strict SB should
+  # drop this block.
+  #
+  INF ShellPkg/Application/Shell/Shell.inf
+!if $(NETWORK_ENABLE) == TRUE
+  INF ShellPkg/DynamicCommand/TftpDynamicCommand/TftpDynamicCommand.inf
+  INF ShellPkg/DynamicCommand/HttpDynamicCommand/HttpDynamicCommand.inf
+!endif
+  INF ShellPkg/DynamicCommand/VariablePolicyDynamicCommand/VariablePolicyDynamicCommand.inf
+  INF OvmfPkg/LinuxInitrdDynamicShellCommand/LinuxInitrdDynamicShellCommand.inf
+!endif
+
+  INF MdeModulePkg/Universal/DevicePathDxe/DevicePathDxe.inf
+  INF MdeModulePkg/Universal/DisplayEngineDxe/DisplayEngineDxe.inf
+  INF MdeModulePkg/Universal/SetupBrowserDxe/SetupBrowserDxe.inf
+  INF MdeModulePkg/Universal/DriverHealthManagerDxe/DriverHealthManagerDxe.inf
+  INF MdeModulePkg/Universal/BootManagerPolicyDxe/BootManagerPolicyDxe.inf
+  INF MdeModulePkg/Universal/BdsDxe/BdsDxe.inf
+  INF MdeModulePkg/Application/UiApp/UiApp.inf
+  INF Platform/Khadas/Vim3/Applications/Vim3MaskRomBoot/Vim3MaskRomBoot.inf
+
+[FV.FVMAIN_COMPACT]
+FvAlignment        = 16
+ERASE_POLARITY     = 1
+MEMORY_MAPPED      = TRUE
+STICKY_WRITE       = TRUE
+LOCK_CAP           = TRUE
+LOCK_STATUS        = TRUE
+WRITE_DISABLED_CAP = TRUE
+WRITE_ENABLED_CAP  = TRUE
+WRITE_STATUS       = TRUE
+WRITE_LOCK_CAP     = TRUE
+WRITE_LOCK_STATUS  = TRUE
+READ_DISABLED_CAP  = TRUE
+READ_ENABLED_CAP   = TRUE
+READ_STATUS        = TRUE
+READ_LOCK_CAP      = TRUE
+READ_LOCK_STATUS   = TRUE
+
+  INF RuleOverride = SELF_RELOC Platform/Khadas/Vim3/PrePi/Vim3PrePi.inf
+
+  FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
+    SECTION GUIDED EE4E5898-3914-4259-9D6E-DC7BD79403CF PROCESSING_REQUIRED = TRUE {
+      SECTION FV_IMAGE = FVMAIN
+    }
+  }
+
+!include ArmVirtPkg/ArmVirtRules.fdf.inc
+
+# ArmVirt's ACPITABLE rule requires both .acpi (from .aslc) and .aml (from
+# .asl) outputs; an ASL-only module such as SsdtPcie produces no .acpi and
+# fails F003 under it.
+[Rule.Common.USER_DEFINED.ACPISSDT]
+  FILE FREEFORM = $(NAMED_GUID) {
+    RAW       ASL                     |.aml
+    UI        STRING="$(MODULE_NAME)" Optional
+  }

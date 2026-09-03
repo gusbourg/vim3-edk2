@@ -1,0 +1,42 @@
+## @file
+#  Amlogic Meson G12B SD/eMMC host controller driver.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 1.30
+  BASE_NAME                      = MesonSdMmcDxe
+  FILE_GUID                      = c7dfdf4b-4034-43a4-a948-0e71ac28182a
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MesonSdMmcDxeEntryPoint
+
+[Sources]
+  MesonSdMmcDxe.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  ArmLib
+  BaseLib
+  BaseMemoryLib
+  CacheMaintenanceLib
+  DebugLib
+  DevicePathLib
+  IoLib
+  MemoryAllocationLib
+  TimerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Protocols]
+  gEfiDevicePathProtocolGuid
+  gEmbeddedMmcHostProtocolGuid
+
+[Depex]
+  TRUE

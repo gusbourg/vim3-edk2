@@ -1,0 +1,83 @@
+## @file
+#  VIM3 relocatable PrePi module.
+#
+#  Derived from ArmVirtPkg/PrePi.
+#
+#  Copyright (c) 2011-2023, Arm Limited. All rights reserved.<BR>
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 1.30
+  BASE_NAME                      = Vim3PrePi
+  FILE_GUID                      = 7495a9dc-03fd-423f-b9ce-d0d6c15fa4e3
+  MODULE_TYPE                    = SEC
+  VALID_ARCHITECTURES            = AARCH64
+  VERSION_STRING                 = 1.0
+
+[Sources]
+  FdtParser.c
+  PrePi.c
+  PrePi.h
+  ArchPrePi.c
+  ModuleEntryPoint.S
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
+  ArmPkg/ArmPkg.dec
+  ArmPlatformPkg/ArmPlatformPkg.dec
+  ArmVirtPkg/ArmVirtPkg.dec
+  OvmfPkg/OvmfPkg.dec
+
+[LibraryClasses]
+  ArmLib
+  BaseLib
+  BaseMemoryLib
+  CacheMaintenanceLib
+  DebugLib
+  ExtractGuidedSectionLib
+  FdtLib
+  HobLib
+  IoLib
+  MemoryAllocationLib
+  MemoryInitPeiLib
+  PeCoffLib
+  PlatformPeiLib
+  PrePiHobListPointerLib
+  PrePiLib
+  SerialPortLib
+  StackCheckLib
+  TimerLib
+
+[Guids]
+  gArmMpCoreInfoGuid
+
+[FeaturePcd]
+  gEmbeddedTokenSpaceGuid.PcdPrePiProduceMemoryTypeInformationHob
+
+[FixedPcd]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString
+  gArmTokenSpaceGuid.PcdFdSize
+  gArmTokenSpaceGuid.PcdFvSize
+  gArmPlatformTokenSpaceGuid.PcdCPUCorePrimaryStackSize
+  gArmPlatformTokenSpaceGuid.PcdSystemMemoryUefiRegionSize
+  gEmbeddedTokenSpaceGuid.PcdPrePiCpuIoSize
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiACPIReclaimMemory
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiACPIMemoryNVS
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiReservedMemoryType
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiRuntimeServicesData
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiRuntimeServicesCode
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiBootServicesCode
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiBootServicesData
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiLoaderCode
+  gEmbeddedTokenSpaceGuid.PcdMemoryTypeEfiLoaderData
+
+[Pcd]
+  gArmTokenSpaceGuid.PcdSystemMemoryBase
+  gArmTokenSpaceGuid.PcdSystemMemorySize
+  gArmTokenSpaceGuid.PcdFdBaseAddress
+  gArmTokenSpaceGuid.PcdFvBaseAddress
+  gUefiOvmfPkgTokenSpaceGuid.PcdDeviceTreeInitialBaseAddress

@@ -1,0 +1,40 @@
+## @file
+#  eMMC partition-switch diagnostic for the capsule path.
+#
+#  Build-only; never embedded in the production FV.  Run from the UEFI
+#  shell (works blind via startup.nsh); results land in probe.log on the
+#  eMMC ESP.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3EmmcProbe
+  FILE_GUID                      = 3c65f8a1-92d4-4b7e-8f0a-56c11de99b21
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3EmmcProbeEntryPoint
+
+[Sources]
+  Vim3EmmcProbe.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DevicePathLib
+  MemoryAllocationLib
+  PrintLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiLib
+
+[Protocols]
+  gEfiDevicePathProtocolGuid
+  gEfiSimpleFileSystemProtocolGuid
+  gEmbeddedMmcHostProtocolGuid

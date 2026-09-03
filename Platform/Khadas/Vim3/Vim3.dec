@@ -1,0 +1,53 @@
+#
+#  Khadas VIM3 platform package.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  DEC_SPECIFICATION              = 0x0001001B
+  PACKAGE_NAME                   = KhadasVim3
+  PACKAGE_GUID                   = 88e171d5-27ba-4b67-bb24-da7b369deb4a
+  PACKAGE_VERSION                = 0.4
+
+[Includes]
+  Include
+
+[LibraryClasses]
+  ##  @libraryclass  Transport primitives for the always-on I2C bus shared by
+  #                  the board MCU and the HYM8563 RTC.
+  Vim3AoI2cLib|Include/Library/Vim3AoI2cLib.h
+
+[Guids]
+  gVim3TokenSpaceGuid = { 0x2b8f4c31, 0x7d6a, 0x4e19, { 0x95, 0xc2, 0x0a, 0x77, 0xe3, 0x1b, 0x64, 0xd8 } }
+  gVim3PlatformFormSetGuid = { 0xc6025aae, 0xfa97, 0x46e7, { 0xb4, 0x16, 0xb5, 0x0b, 0xee, 0x7e, 0x04, 0xec } }
+  ## FILE_GUID of Vim3MaskRomBoot.efi in the firmware volume.
+  gVim3MaskRomBootFileGuid = { 0x8f7c84d2, 0x9b1e, 0x4c6f, { 0xa1, 0xd3, 0x6e, 0x07, 0xc0, 0x0c, 0x15, 0xb4 } }
+  ## FILE_GUID of the conditionally-installed PCIe SSDT (must equal
+  #  AcpiTables/SsdtPcie.inf FILE_GUID; Vim3PlatformDxe fetches the RAW
+  #  section by this GUID).
+  gVim3SsdtPcieFileGuid = { 0x7de389c6, 0x2f9e, 0x4b64, { 0x92, 0xa1, 0x56, 0xc7, 0x3a, 0x02, 0xcf, 0x1e } }
+  gVim3SsdtDisplayFileGuid = { 0x4c8a2f17, 0x95d3, 0x4e6b, { 0xb1, 0xc0, 0x8f, 0x27, 0xa3, 0x0d, 0x64, 0xe5 } }
+  gVim3SsdtAudioFileGuid = { 0x0287370b, 0x48c7, 0x4962, { 0xbd, 0x07, 0x2b, 0xdf, 0xa5, 0x6d, 0x5e, 0xbb } }
+  gVim3SsdtVdecFileGuid = { 0xd50ba458, 0xb3a1, 0x4d1d, { 0xa1, 0x4a, 0x56, 0x95, 0x6c, 0xf4, 0x32, 0xd9 } }
+
+[Protocols]
+  ## Installs the running firmware from the eMMC boot partition into the SPI
+  #  NOR on demand.  Produced by Vim3FmpDxe (which already owns the NOR write
+  #  and the eMMC access); consumed by Vim3BootManagerLib when the setup menu
+  #  has requested an immediate install.
+  gVim3SpiNorInstallProtocolGuid = { 0xb2d44920, 0x6b06, 0x46ad, { 0xb0, 0x4e, 0x84, 0x0b, 0x4b, 0x29, 0x58, 0x82 } }
+
+[PcdsFixedAtBuild]
+  ## Monotonic firmware revision reported through the Firmware Management
+  #  Protocol and ESRT.  Vim3.dsc overrides it with the repo's commit count
+  #  (build.sh -D FIRMWARE_REVISION); capsules carry no version, so this is
+  #  truthful reporting rather than rollback enforcement.
+  gVim3TokenSpaceGuid.PcdVim3FirmwareRevision|0x00000001|UINT32|0x00000001
+
+  ## Oldest revision a capsule may roll back to.
+  gVim3TokenSpaceGuid.PcdVim3FirmwareLowestSupportedVersion|0x00000001|UINT32|0x00000002
+
+  ## ImageTypeId a capsule must carry to be accepted as VIM3 system firmware.
+  gVim3TokenSpaceGuid.PcdVim3SystemFirmwareImageTypeIdGuid|{ 0x6d, 0x1a, 0xf4, 0xc8, 0x39, 0x5b, 0x42, 0x7e, 0xb0, 0x93, 0x2c, 0x84, 0x71, 0xe5, 0x0d, 0xa6 }|VOID*|0x00000003

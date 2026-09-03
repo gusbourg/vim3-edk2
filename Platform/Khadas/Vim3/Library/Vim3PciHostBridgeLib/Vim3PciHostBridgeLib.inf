@@ -1,0 +1,35 @@
+#
+#  PciHostBridgeLib for the Khadas VIM3's DesignWare PCIe root port.
+#  The constructor performs the entire hardware bring-up (mux-gated);
+#  GetRootBridges() reports the port only when the link trained.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3PciHostBridgeLib
+  FILE_GUID                      = 3c4dd3f8-22a5-4a1e-9f0a-9a3f6c54c2b7
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = PciHostBridgeLib|DXE_DRIVER
+  CONSTRUCTOR                    = Vim3PciHostBridgeLibConstructor
+
+[Sources]
+  PciHostBridgeLib.c
+  PciHostBridgeLibConstructor.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  ArmLib
+  DebugLib
+  DevicePathLib
+  IoLib
+  MesonPcieMuxLib
+  TimerLib

@@ -1,0 +1,32 @@
+#
+#  PCI Segment Library for the Amlogic G12B DesignWare root complex.
+#  Root port config = DBI direct; downstream = iATU-retargeted CFG window.
+#
+#  Derived from Bcm2711PciSegmentLib.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = MesonPciSegmentLib
+  FILE_GUID                      = 9d6a1f7e-4c83-40f1-8f4e-2b7d1c9a5e02
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = PciSegmentLib
+
+[Sources]
+  PciSegmentLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  ArmLib
+  BaseLib
+  DebugLib
+  IoLib
+  TimerLib
+  UefiLib

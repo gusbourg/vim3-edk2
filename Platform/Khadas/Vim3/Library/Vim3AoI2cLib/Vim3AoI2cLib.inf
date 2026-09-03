@@ -1,0 +1,26 @@
+#
+#  Transport primitives for the Khadas VIM3 always-on I2C bus.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3AoI2cLib
+  FILE_GUID                      = 4a3d5c18-6b2e-4f7a-9c31-5d0e8b7a2f46
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = Vim3AoI2cLib
+
+[Sources]
+  Vim3AoI2cLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+
+[LibraryClasses]
+  DebugLib
+  IoLib
+  TimerLib

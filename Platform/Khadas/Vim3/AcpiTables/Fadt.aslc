@@ -1,0 +1,50 @@
+/** @file
+  Hardware-reduced ACPI 6.6 FADT for the Khadas VIM3.
+
+  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+  SPDX-License-Identifier: BSD-2-Clause-Patent
+**/
+
+#include <Library/AcpiLib.h>
+
+#include "AcpiTables.h"
+
+STATIC EFI_ACPI_6_6_FIXED_ACPI_DESCRIPTION_TABLE Fadt = {
+  VIM3_ACPI_HEADER (
+    EFI_ACPI_6_6_FIXED_ACPI_DESCRIPTION_TABLE_SIGNATURE,
+    EFI_ACPI_6_6_FIXED_ACPI_DESCRIPTION_TABLE,
+    EFI_ACPI_6_6_FIXED_ACPI_DESCRIPTION_TABLE_REVISION
+    ),
+  0,                                        // FirmwareCtrl
+  0,                                        // Dsdt
+  EFI_ACPI_RESERVED_BYTE,                   // Reserved0
+  EFI_ACPI_6_6_PM_PROFILE_APPLIANCE_PC,     // PreferredPmProfile
+  0,                                        // SciInt
+  0,                                        // SmiCmd
+  0,                                        // AcpiEnable
+  0,                                        // AcpiDisable
+  0,                                        // S4BiosReq
+  0,                                        // PstateCnt
+  0, 0, 0, 0, 0, 0, 0, 0,                 // PM/GPE block addresses
+  0, 0, 0, 0, 0, 0, 0, 0,                 // PM/GPE lengths and CstCnt
+  0, 0,                                     // PLvl2Lat, PLvl3Lat
+  0, 0,                                     // FlushSize, FlushStride
+  0, 0,                                     // DutyOffset, DutyWidth
+  0, 0, 0,                                  // DayAlrm, MonAlrm, Century
+  0,                                        // IaPcBootArch
+  0,                                        // Reserved1
+  EFI_ACPI_6_6_HW_REDUCED_ACPI,             // Flags
+  NULL_GAS,                                 // ResetReg
+  0,                                        // ResetValue
+  EFI_ACPI_6_6_ARM_PSCI_COMPLIANT,          // ArmBootArch
+  EFI_ACPI_6_6_FIXED_ACPI_DESCRIPTION_TABLE_MINOR_REVISION,
+  0,                                        // XFirmwareCtrl
+  0,                                        // XDsdt, patched by AcpiPlatformDxe
+  NULL_GAS, NULL_GAS, NULL_GAS, NULL_GAS,
+  NULL_GAS, NULL_GAS, NULL_GAS, NULL_GAS,
+  NULL_GAS, NULL_GAS,
+  0                                         // HypervisorVendorIdentity
+};
+
+VOID *CONST ReferenceAcpiTable = &Fadt;
+

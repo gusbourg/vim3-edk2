@@ -1,0 +1,39 @@
+#
+#  EFI RealTimeClock services backed by the VIM3's HYM8563.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3RealTimeClockLib
+  FILE_GUID                      = 2f9b47ea-51c8-4d63-8a70-9e14c6b3d508
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = RealTimeClockLib
+
+[Sources]
+  Vim3RealTimeClockLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  TimeBaseLib
+  TimerLib
+  UefiRuntimeLib
+  Vim3AoI2cLib
+
+[BuildOptions]
+  #
+  # Fallback anchor for a board whose RTC has never been set (or has no
+  # battery): time still advances, it just starts at the build date rather
+  # than 1970.  Same mechanism VirtualRealTimeClockLib uses.
+  #
+  *_*_*_CC_FLAGS = -DBUILD_EPOCH=$(SOURCE_DATE_EPOCH)

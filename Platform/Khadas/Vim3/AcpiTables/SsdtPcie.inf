@@ -1,0 +1,26 @@
+## @file
+#  Conditionally-installed PCIe SSDT for the Khadas VIM3 (ACPI mode).
+#
+#  Built into its own FFS file (FILE_GUID below) so AcpiPlatformDxe does
+#  NOT auto-publish it with the static set; Vim3PlatformDxe fetches the
+#  RAW section by this GUID and installs it only when the OS hardware
+#  description is ACPI and the USB3/M.2 mux selects PCIe.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = Vim3SsdtPcie
+  # Must equal gVim3SsdtPcieFileGuid in Vim3.dec (the installer's lookup key).
+  FILE_GUID                      = 7de389c6-2f9e-4b64-92a1-56c73a02cf1e
+  MODULE_TYPE                    = USER_DEFINED
+  VERSION_STRING                 = 1.0
+
+[Sources]
+  SsdtPcie.asl
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec

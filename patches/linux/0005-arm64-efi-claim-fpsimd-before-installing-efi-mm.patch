@@ -1,0 +1,110 @@
+From f8ce5e1c25d40e144f9cc98cdbf04f319b211816 Mon Sep 17 00:00:00 2001
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: [PATCH] arm64/efi: Claim FPSIMD state before installing the EFI mm
+ under SW PAN
+
+When PAN is emulated by switching TTBR0_EL1, arch_efi_call_virt_setup()
+installs the EFI mm into TTBR0_EL1 via uaccess_ttbr0_enable(), and only a
+return from exception ever puts it back: check_and_switch_context() skips
+the register write by design ("Defer TTBR0_EL1 setting for user threads to
+uaccess_enable() when emulating PAN"), and __switch_to() does not touch it
+either. switch_mm() updates only thread_info->ttbr0.
+
+Since commit a5baf582f4c0 ("arm64/efi: Call EFI runtime services without
+disabling preemption") the runtime call is preemptible, so the EFI worker
+can now be scheduled out inside that window. An involuntary preemption is
+harmless, because __swpan_entry_el1()/__swpan_exit_el1() save and restore
+the state around the exception. A voluntary reschedule is not: it performs
+no return from exception, so the worker resumes with another task's
+TTBR0_EL1 - or reserved_pg_dir - and the next efi_mm access takes a level 0
+translation fault.
+
+There is such a preemption point in arch_efi_call_virt_setup() itself,
+immediately after the TTBR0 install: __efi_fpsimd_begin() ->
+kernel_neon_begin() -> put_cpu_fpsimd_context() -> local_bh_enable() ->
+preempt_check_resched().
+
+On a Khadas VIM3 (Cortex-A73/A53, no FEAT_PAN, so CONFIG_ARM64_SW_TTBR0_PAN
+is in use) this reproduces as:
+
+  Unable to handle kernel access to user memory outside uaccess routines
+    at virtual address 00000000f322ff30
+  Mem abort info:
+    ESR = 0x0000000096000004
+    FSC = 0x04: level 0 translation fault
+  Internal error: Oops: 0000000096000004 [#1]  SMP
+  Workqueue: efi_rts_wq efi_call_rts
+  pstate: 80400005 (Nzcv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+  pc : efi_call_rts+0xd8/0x288
+  Call trace:
+   efi_call_rts+0xd8/0x288 (P)
+   process_one_work+0x178/0x4f8
+   worker_thread+0x194/0x328
+
+The faulting instruction is the kernel's own load of efi.runtime->get_time;
+firmware is never entered, so efi_runtime_fixup_exception() declines it
+(the PC is kernel text) and the result is a full oops rather than
+EFI_ABORTED. The EFI runtime path is then wedged for the rest of the boot:
+efi_rts_work.efi_rts_comp is never completed and the runtime lock is never
+released, so every subsequent caller blocks in uninterruptible sleep, and
+poweroff hangs because EFI_RUNTIME_SERVICES is still set.
+
+Move __efi_fpsimd_begin() before uaccess_ttbr0_enable(), so its preemption
+point is taken before the EFI mm is live in TTBR0_EL1. No voluntary
+preemption point remains between the TTBR0 install and the firmware call.
+The symmetric point on the teardown side, __efi_fpsimd_end() before
+uaccess_ttbr0_disable(), is harmless: no EFI runtime pointer is
+dereferenced after the firmware call returns, so nothing reads through a
+stale TTBR0_EL1 there, and uaccess_ttbr0_disable() only overwrites the
+register.
+
+The failing window was identified with ftrace, tracing efi_call_rts,
+arch_efi_call_virt_setup, kthread_use_mm, __efi_fpsimd_begin,
+kernel_neon_begin and arch_efi_call_virt_teardown together with
+sched_switch. Of four preemptions observed inside the window over 12726
+calls, the two that landed before the TTBR0 install (in kthread_use_mm)
+were harmless and the two that landed in kernel_neon_begin were not; one
+of those faulted.
+
+Fixes: a5baf582f4c0 ("arm64/efi: Call EFI runtime services without disabling preemption")
+Cc: <stable@vger.kernel.org> # v6.19+
+Suggested-by: Will Deacon <will@kernel.org>
+Assisted-by: Claude:claude-fable-5 ftrace
+Signed-off-by: Gus Bourg <gus@bourg.net>
+---
+ arch/arm64/kernel/efi.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/kernel/efi.c b/arch/arm64/kernel/efi.c
+index a81cb4a..4e8d491 100644
+--- a/arch/arm64/kernel/efi.c
++++ b/arch/arm64/kernel/efi.c
+@@ -184,6 +184,15 @@ void arch_efi_call_virt_setup(void)
+ 		efi_virtmap_load();
+ 	}
+ 
++	/*
++	 * This must be done before uaccess_ttbr0_enable(): kernel_neon_begin()
++	 * ends with a preemption point, and when PAN is emulated by switching
++	 * TTBR0_EL1, a voluntary reschedule taken after the EFI mm has been
++	 * installed into TTBR0_EL1 resumes with another task's TTBR0_EL1, as
++	 * only a return from exception restores the register.
++	 */
++	__efi_fpsimd_begin();
++
+ 	/*
+ 	 * Enable access to the valid TTBR0_EL1 and invoke the errata
+ 	 * workaround directly since there is no return from exception when
+@@ -191,8 +200,6 @@ void arch_efi_call_virt_setup(void)
+ 	 */
+ 	uaccess_ttbr0_enable();
+ 	post_ttbr_update_workaround();
+-
+-	__efi_fpsimd_begin();
+ }
+ 
+ void arch_efi_call_virt_teardown(void)
+-- 
+2.53.0
+

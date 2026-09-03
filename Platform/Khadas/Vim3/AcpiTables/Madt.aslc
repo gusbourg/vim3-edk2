@@ -1,0 +1,73 @@
+/** @file
+  GICv2 and processor interfaces for the Khadas VIM3.
+
+  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+  SPDX-License-Identifier: BSD-2-Clause-Patent
+**/
+
+#include "AcpiTables.h"
+
+#pragma pack (1)
+
+typedef struct {
+  EFI_ACPI_6_6_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER  Header;
+  EFI_ACPI_6_6_GIC_STRUCTURE                           CpuInterfaces[6];
+  EFI_ACPI_6_6_GIC_DISTRIBUTOR_STRUCTURE               Distributor;
+} VIM3_MADT;
+
+#pragma pack ()
+
+#define VIM3_GICC(Uid, Mpidr) {              \
+  EFI_ACPI_6_6_GIC,                          \
+  sizeof (EFI_ACPI_6_6_GIC_STRUCTURE),       \
+  0,                                         \
+  Uid,                                       \
+  Uid,                                       \
+  EFI_ACPI_6_6_GIC_ENABLED,                  \
+  0,                                         \
+  0,                                         \
+  0,                                         \
+  VIM3_GIC_CPU_INTERFACE_BASE,               \
+  VIM3_GIC_VIRTUAL_BASE,                      \
+  VIM3_GIC_HYPERVISOR_BASE,                   \
+  VIM3_GIC_MAINTENANCE_GSIV,                  \
+  0,                                          \
+  Mpidr,                                     \
+  0,                                         \
+  0,                                         \
+  0,                                         \
+  0                                          \
+}
+
+STATIC VIM3_MADT Madt = {
+  {
+    VIM3_ACPI_HEADER (
+      EFI_ACPI_6_6_MULTIPLE_APIC_DESCRIPTION_TABLE_SIGNATURE,
+      VIM3_MADT,
+      EFI_ACPI_6_6_MULTIPLE_APIC_DESCRIPTION_TABLE_REVISION
+      ),
+    0,
+    0
+  },
+  {
+    VIM3_GICC (0, 0x000),
+    VIM3_GICC (1, 0x001),
+    VIM3_GICC (2, 0x100),
+    VIM3_GICC (3, 0x101),
+    VIM3_GICC (4, 0x102),
+    VIM3_GICC (5, 0x103)
+  },
+  {
+    EFI_ACPI_6_6_GICD,
+    sizeof (EFI_ACPI_6_6_GIC_DISTRIBUTOR_STRUCTURE),
+    0,
+    0,
+    VIM3_GIC_DISTRIBUTOR_BASE,
+    0,
+    EFI_ACPI_6_6_GIC_V2,
+    { 0, 0, 0 }
+  }
+};
+
+VOID *CONST ReferenceAcpiTable = &Madt;
+

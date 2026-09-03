@@ -1,0 +1,29 @@
+## @file
+#  One-shot VIM3 MaskROM transition with HTTP BootNext re-arming.
+#
+#  This application is build-only and is never embedded in the production FV.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3UsbBootHttp
+  FILE_GUID                      = a0260683-532b-4a8e-b0ad-46b57b11be86
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3UsbBootHttpEntryPoint
+
+[Sources]
+  Vim3UsbBootHttp.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  ArmSmcLib
+  BaseMemoryLib
+  UefiApplicationEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib

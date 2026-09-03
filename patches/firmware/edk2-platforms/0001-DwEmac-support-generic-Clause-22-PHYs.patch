@@ -1,0 +1,338 @@
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: DwEmac support generic Clause 22 PHYs
+
+Written for the Khadas VIM3 EDK2 port.
+
+Signed-off-by: Gus Bourg <gus@bourg.net>
+
+diff --git a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DriverBinding.c b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DriverBinding.c
+index 2c39e6b..e580202 100755
+--- a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DriverBinding.c
++++ b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DriverBinding.c
+@@ -8,6 +8,7 @@
+ 
+ #include "DwEmacSnpDxe.h"
+ 
++#include <Library/BaseMemoryLib.h>
+ #include <Library/DebugLib.h>
+ #include <Library/DevicePathLib.h>
+ #include <Library/DmaLib.h>
+@@ -93,6 +94,18 @@ DriverSupported (
+     return Status;
+   }
+ 
++  DEBUG ((
++    DEBUG_INFO,
++    "SNP: DriverSupported(%p): type=%g expected=%g\r\n",
++    Controller,
++    Dev->Type,
++    &gDwEmacNetNonDiscoverableDeviceGuid
++    ));
++
++  if (!CompareGuid (Dev->Type, &gDwEmacNetNonDiscoverableDeviceGuid)) {
++    Status = EFI_UNSUPPORTED;
++  }
++
+   // Clean up.
+   gBS->CloseProtocol (Controller,
+                       &gEdkiiNonDiscoverableDeviceProtocolGuid,
+@@ -122,11 +135,16 @@ DriverStart (
+   UINTN                            *RxBufferAddr;
+   EFI_PHYSICAL_ADDRESS             RxBufferAddrMap;
+ 
++  DEBUG ((DEBUG_INFO, "SNP: DriverStart(%p)\r\n", Controller));
++
+   // Allocate Resources
+   Snp = AllocatePages (EFI_SIZE_TO_PAGES (sizeof (SIMPLE_NETWORK_DRIVER)));
+   if (Snp == NULL) {
+     return EFI_OUT_OF_RESOURCES;
+   }
++  ZeroMem (Snp, EFI_PAGES_TO_SIZE (
++                  EFI_SIZE_TO_PAGES (sizeof (SIMPLE_NETWORK_DRIVER))
++                  ));
+ 
+   Status = gBS->OpenProtocol (Controller,
+                               &gEdkiiNonDiscoverableDeviceProtocolGuid,
+@@ -134,9 +152,13 @@ DriverStart (
+                               This->DriverBindingHandle,
+                               Controller,
+                               EFI_OPEN_PROTOCOL_BY_DRIVER);
++  if (EFI_ERROR (Status)) {
++    FreePages (Snp, EFI_SIZE_TO_PAGES (sizeof (SIMPLE_NETWORK_DRIVER)));
++    return Status;
++  }
+ 
+   // Size for descriptor
+-  DescriptorSize = EFI_PAGES_TO_SIZE (sizeof (DESIGNWARE_HW_DESCRIPTOR));
++  DescriptorSize = sizeof (DESIGNWARE_HW_DESCRIPTOR);
+   // Size for transmit and receive buffer
+   BufferSize = ETH_BUFSIZE;
+ 
+@@ -149,6 +171,7 @@ DriverStart (
+       return Status;
+     }
+ 
++    DescriptorSize = sizeof (DESIGNWARE_HW_DESCRIPTOR);
+     Status = DmaMap (MapOperationBusMasterCommonBuffer, Snp->MacDriver.TxdescRing[Index],
+                &DescriptorSize, &Snp->MacDriver.TxdescRingMap[Index].AddrMap, &Snp->MacDriver.TxdescRingMap[Index].Mapping);
+     if (EFI_ERROR (Status)) {
+@@ -164,6 +187,7 @@ DriverStart (
+       return Status;
+     }
+ 
++    DescriptorSize = sizeof (DESIGNWARE_HW_DESCRIPTOR);
+     Status = DmaMap (MapOperationBusMasterCommonBuffer, Snp->MacDriver.RxdescRing[Index],
+                &DescriptorSize, &Snp->MacDriver.RxdescRingMap[Index].AddrMap, &Snp->MacDriver.RxdescRingMap[Index].Mapping);
+     if (EFI_ERROR (Status)) {
+@@ -172,7 +196,8 @@ DriverStart (
+     }
+ 
+     //DMA mapping for receive buffer
+-    RxBufferAddr = (UINTN*)((UINTN)Snp->MacDriver.RxBuffer + (Index * BufferSize));
++    BufferSize = ETH_BUFSIZE;
++    RxBufferAddr = (UINTN*)((UINTN)Snp->MacDriver.RxBuffer + (Index * ETH_BUFSIZE));
+     Status = DmaMap (MapOperationBusMasterWrite,  (VOID *) RxBufferAddr,
+                &BufferSize, &RxBufferAddrMap, &Snp->MacDriver.RxBufNum[Index].Mapping);
+     if (EFI_ERROR (Status)) {
+@@ -218,7 +243,7 @@ DriverStart (
+ 
+   Snp->RecycledTxBuf = AllocatePool (sizeof (UINT64) * SNP_TX_BUFFER_INCREASE);
+   if (Snp->RecycledTxBuf == NULL) {
+-    Status = EFI_OUT_OF_RESOURCES;
++    return EFI_OUT_OF_RESOURCES;
+   }
+ 
+   Snp->MaxRecycledTxBuf = SNP_TX_BUFFER_INCREASE;
+diff --git a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.inf b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.inf
+index fde8bae..9f125c3 100755
+--- a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.inf
++++ b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.inf
+@@ -14,7 +14,7 @@
+   INF_VERSION                    = 1.27
+   BASE_NAME                      = DwEmacSnpDxe
+   FILE_GUID                      = 06f3315f-9fe6-4938-b83f-2c072af802ba
+-  MODULE_TYPE                    = UEFI_DRIVER
++  MODULE_TYPE                    = DXE_DRIVER
+   VERSION_STRING                 = 0.1
+   ENTRY_POINT                    = DwEmacSnpDxeEntry
+ 
+@@ -48,11 +48,14 @@
+   UefiLib
+ 
+ [Protocols]
++  gEdkiiNonDiscoverableDeviceProtocolGuid  ## TO_START
++  gEfiDevicePathProtocolGuid                ## BY_START
++  gEfiDriverBindingProtocolGuid             ## PRODUCES
++  gEfiMetronomeArchProtocolGuid             ## CONSUMES
++  gEfiSimpleNetworkProtocolGuid             ## BY_START
++
++[Depex]
+   gEdkiiNonDiscoverableDeviceProtocolGuid
+-  gEfiDevicePathProtocolGuid
+-  gEfiDriverBindingProtocolGuid
+-  gEfiMetronomeArchProtocolGuid
+-  gEfiSimpleNetworkProtocolGuid
+ 
+ [Guids]
+   gDwEmacNetNonDiscoverableDeviceGuid  ## TO_START
+diff --git a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.c b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.c
+index dd02589..a623119 100755
+--- a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.c
++++ b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.c
+@@ -20,6 +20,7 @@
+ #include <Library/DebugLib.h>
+ #include <Library/IoLib.h>
+ #include <Library/MemoryAllocationLib.h>
++#include <Library/TimerLib.h>
+ 
+ VOID
+ EFIAPI
+@@ -92,10 +93,7 @@ EmacDxeInitialization (
+ {
+   DEBUG ((DEBUG_INFO, "SNP:MAC: %a ()\r\n", __func__));
+ 
+-  // Init EMAC DMA
+-  EmacDmaInit (EmacDriver, MacBaseAddress);
+-
+-  return EFI_SUCCESS;
++  return EmacDmaInit (EmacDriver, MacBaseAddress);
+ }
+ 
+ 
+@@ -124,7 +122,21 @@ EmacDmaInit (
+ 
+   // 2. Wait for the completion of the reset process (poll bit 0 of the DMA Register 0 (Bus Mode Register),
+   // which is only cleared after the reset operation is completed).
+-  while (DW_EMAC_DMAGRP_BUS_MODE_SWR_GET (MmioRead32 (MacBaseAddress + DW_EMAC_DMAGRP_BUS_MODE_OFST)));
++  for (UINTN Timeout = 0; Timeout < 100000; Timeout++) {
++    if (!DW_EMAC_DMAGRP_BUS_MODE_SWR_GET (
++           MmioRead32 (MacBaseAddress + DW_EMAC_DMAGRP_BUS_MODE_OFST)
++           ))
++    {
++      break;
++    }
++
++    if (Timeout == 99999) {
++      DEBUG ((DEBUG_ERROR, "SNP:MAC: DMA software reset timeout\r\n"));
++      return EFI_TIMEOUT;
++    }
++
++    MicroSecondDelay (1);
++  }
+ 
+   // 3. Poll the bits of Register 11 (AHB or AXI Status) to confirm that all previously initiated (before
+   // software reset) or ongoing transactions are complete.
+diff --git a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/PhyDxeUtil.c b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/PhyDxeUtil.c
+index 9f661d1..85a7d17 100755
+--- a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/PhyDxeUtil.c
++++ b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/PhyDxeUtil.c
+@@ -43,9 +43,7 @@ PhyDxeInitialization (
+     return EFI_NOT_FOUND;
+   }
+ 
+-  PhyConfig (PhyDriver, MacBaseAddress);
+-
+-  return EFI_SUCCESS;
++  return PhyConfig (PhyDriver, MacBaseAddress);
+ }
+ 
+ 
+@@ -63,7 +61,7 @@ PhyDetectDevice (
+   DEBUG ((DEBUG_INFO, "SNP:PHY: %a ()\r\n", __func__));
+ 
+   for (PhyAddr = 0; PhyAddr < 32; PhyAddr++) {
+-    Status = PhyReadId (PhyAddr, MacBaseAddress);
++    Status = PhyReadId (PhyDriver, PhyAddr, MacBaseAddress);
+     if (EFI_ERROR(Status)) {
+       continue;
+     }
+@@ -94,20 +92,28 @@ PhyConfig (
+     return EFI_DEVICE_ERROR;
+   }
+ 
+-  // Configure TX/RX Skew
+-  PhyConfigSkew (PhyDriver, MacBaseAddress);
+-
+-  // Read back and display Skew settings
+-  PhyDisplayConfigSkew (PhyDriver, MacBaseAddress);
+-
+-  // Configure AN FLP Burst Trasmit timing interval
+-  PhyConfigFlpBurstTiming (PhyDriver, MacBaseAddress);
+-  PhyDisplayFlpBurstTiming (PhyDriver, MacBaseAddress);
++  //
++  // The extended skew and FLP registers below are specific to the Micrel
++  // KSZ9031.  Do not write them on generic PHYs such as VIM3's RTL8211F.
++  //
++  if ((PhyDriver->PhyId1 == 0x0022) &&
++      ((PhyDriver->PhyId2 & 0xFFF0) == 0x1620))
++  {
++    PhyConfigSkew (PhyDriver, MacBaseAddress);
++    PhyDisplayConfigSkew (PhyDriver, MacBaseAddress);
++    PhyConfigFlpBurstTiming (PhyDriver, MacBaseAddress);
++    PhyDisplayFlpBurstTiming (PhyDriver, MacBaseAddress);
++  } else {
++    DEBUG ((
++      DEBUG_INFO,
++      "SNP:PHY: generic Clause 22 setup for PHY %04x:%04x\r\n",
++      PhyDriver->PhyId1,
++      PhyDriver->PhyId2
++      ));
++  }
+ 
+   // Configure AN and Advertise
+-  PhyAutoNego (PhyDriver, MacBaseAddress);
+-
+-  return EFI_SUCCESS;
++  return PhyAutoNego (PhyDriver, MacBaseAddress);
+ }
+ 
+ 
+@@ -126,7 +132,12 @@ PhySoftReset (
+   DEBUG ((DEBUG_INFO, "SNP:PHY: %a ()\r\n", __func__));
+ 
+   // PHY Basic Control Register reset
+-  PhyWrite (PhyDriver->PhyAddr, PHY_BASIC_CTRL, PHYCTRL_RESET, MacBaseAddress);
++  Status = PhyWrite (
++             PhyDriver->PhyAddr, PHY_BASIC_CTRL, PHYCTRL_RESET, MacBaseAddress
++             );
++  if (EFI_ERROR (Status)) {
++    return Status;
++  }
+ 
+   // Wait for completion
+   TimeOut = 0;
+@@ -155,6 +166,7 @@ PhySoftReset (
+ EFI_STATUS
+ EFIAPI
+ PhyReadId (
++  IN PHY_DRIVER   *PhyDriver,
+   IN UINT32   PhyAddr,
+   IN UINTN    MacBaseAddress
+   )
+@@ -176,6 +188,9 @@ PhyReadId (
+     return EFI_NOT_FOUND;
+   }
+ 
++  PhyDriver->PhyId1 = PhyId1;
++  PhyDriver->PhyId2 = PhyId2;
++
+   DEBUG ((DEBUG_INFO, "SNP:PHY: Ethernet PHY detected. PHY_ID1=0x%04X, PHY_ID2=0x%04X, PHY_ADDR=0x%02X\r\n",
+           PhyId1, PhyId2, PhyAddr));
+   return EFI_SUCCESS;
+@@ -311,7 +326,10 @@ PhyAutoNego (
+ 
+   // Set Advertise capabilities for 10Base-T/10Base-T full-duplex/100Base-T/100Base-T full-duplex
+   Features |= (PHYANA_10BASET | PHYANA_10BASETFD | PHYANA_100BASETX | PHYANA_100BASETXFD);
+-  PhyWrite (PhyDriver->PhyAddr, PHY_AUTO_NEG_ADVERT, Features, MacBaseAddress);
++  Status = PhyWrite (PhyDriver->PhyAddr, PHY_AUTO_NEG_ADVERT, Features, MacBaseAddress);
++  if (EFI_ERROR (Status)) {
++    return Status;
++  }
+ 
+   // Read PHY Auto-Nego Advertise capabilities register for 1000 Base-T
+   Status = PhyRead (PhyDriver->PhyAddr, PHY_1000BASE_T_CONTROL, &Features, MacBaseAddress);
+@@ -321,7 +339,10 @@ PhyAutoNego (
+ 
+   // Set Advertise capabilities for 1000 Base-T/1000 Base-T full-duplex
+   Features |= (PHYADVERTISE_1000FULL | PHYADVERTISE_1000HALF);
+-  PhyWrite (PhyDriver->PhyAddr, PHY_1000BASE_T_CONTROL, Features, MacBaseAddress);
++  Status = PhyWrite (PhyDriver->PhyAddr, PHY_1000BASE_T_CONTROL, Features, MacBaseAddress);
++  if (EFI_ERROR (Status)) {
++    return Status;
++  }
+ 
+   // Read control register
+   Status = PhyRead (PhyDriver->PhyAddr, PHY_BASIC_CTRL, &PhyControl, MacBaseAddress);
+@@ -333,9 +354,7 @@ PhyAutoNego (
+   // Restart auto-negotiation
+   PhyControl |= PHYCTRL_RST_AUTO;
+   // Write this configuration
+-  PhyWrite (PhyDriver->PhyAddr, PHY_BASIC_CTRL, PhyControl, MacBaseAddress);
+-
+-  return EFI_SUCCESS;
++  return PhyWrite (PhyDriver->PhyAddr, PHY_BASIC_CTRL, PhyControl, MacBaseAddress);
+ }
+ 
+ 
+diff --git a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/PhyDxeUtil.h b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/PhyDxeUtil.h
+index c62caf5..18bf608 100755
+--- a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/PhyDxeUtil.h
++++ b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/PhyDxeUtil.h
+@@ -19,6 +19,8 @@
+ 
+ typedef struct {
+   UINT32 PhyAddr;
++  UINT32 PhyId1;
++  UINT32 PhyId2;
+   UINT32 PhyCurrentLink;
+   UINT32 PhyOldLink;
+ } PHY_DRIVER;
+@@ -211,6 +213,7 @@ PhySoftReset (
+ EFI_STATUS
+ EFIAPI
+ PhyReadId (
++  IN  PHY_DRIVER    *PhyDriver,
+   IN  UINT32        PhyAddr,
+   IN  UINTN         MacBaseAddress
+   );

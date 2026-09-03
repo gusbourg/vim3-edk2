@@ -1,0 +1,63 @@
+#
+# Amlogic Meson G12B/A311D HDMI GOP for the Khadas VIM3.
+#
+# Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+# SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = MesonDisplayDxe
+  FILE_GUID                      = 7d23f9ea-908b-4d48-bd56-39fb7442e54f
+  MODULE_TYPE                    = UEFI_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MesonDisplayDxeEntryPoint
+
+[Sources]
+  MesonDisplayDxe.c
+  MesonDisplayHw.c
+  MesonDisplay.h
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+
+[LibraryClasses]
+  ArmLib
+  BaseLib
+  BaseMemoryLib
+  CacheMaintenanceLib
+  DebugLib
+  DevicePathLib
+  DxeServicesLib
+  FdtLib
+  FrameBufferBltLib
+  IoLib
+  MemoryAllocationLib
+  PrintLib
+  TimerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib
+
+[Guids]
+  gFdtTableGuid
+  gVim3PlatformFormSetGuid
+  gVim3SsdtDisplayFileGuid
+  gVim3SsdtAudioFileGuid
+  gVim3SsdtVdecFileGuid
+
+[Protocols]
+  gEfiAcpiTableProtocolGuid
+  gEfiCpuArchProtocolGuid
+  gEfiDevicePathProtocolGuid
+  gEfiEdidActiveProtocolGuid
+  gEfiEdidDiscoveredProtocolGuid
+  gEfiGraphicsOutputProtocolGuid
+  gFdtClientProtocolGuid
+
+[Depex]
+  gEfiCpuArchProtocolGuid AND gFdtClientProtocolGuid

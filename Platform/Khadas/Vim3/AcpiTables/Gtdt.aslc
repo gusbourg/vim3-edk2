@@ -1,0 +1,37 @@
+/** @file
+  Arm architected timer description for the Khadas VIM3.
+
+  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+  SPDX-License-Identifier: BSD-2-Clause-Patent
+**/
+
+#include "AcpiTables.h"
+
+#define VIM3_GTDT_TIMER_FLAGS \
+  EFI_ACPI_6_6_GTDT_TIMER_FLAG_TIMER_INTERRUPT_POLARITY
+
+STATIC EFI_ACPI_6_6_GENERIC_TIMER_DESCRIPTION_TABLE Gtdt = {
+  VIM3_ACPI_HEADER (
+    EFI_ACPI_6_6_GENERIC_TIMER_DESCRIPTION_TABLE_SIGNATURE,
+    EFI_ACPI_6_6_GENERIC_TIMER_DESCRIPTION_TABLE,
+    EFI_ACPI_6_6_GENERIC_TIMER_DESCRIPTION_TABLE_REVISION
+    ),
+  MAX_UINT64,                         // CntControlBasePhysicalAddress
+  0,                                  // Reserved
+  VIM3_TIMER_SECURE_GSIV,
+  VIM3_GTDT_TIMER_FLAGS,
+  VIM3_TIMER_NON_SECURE_GSIV,
+  VIM3_GTDT_TIMER_FLAGS,
+  VIM3_TIMER_VIRTUAL_GSIV,
+  VIM3_GTDT_TIMER_FLAGS,
+  VIM3_TIMER_HYPERVISOR_GSIV,
+  VIM3_GTDT_TIMER_FLAGS,
+  MAX_UINT64,                         // CntReadBasePhysicalAddress
+  0,                                  // PlatformTimerCount
+  0,                                  // PlatformTimerOffset
+  0,                                  // VirtualPL2TimerGSIV
+  0                                   // VirtualPL2TimerFlags
+};
+
+VOID *CONST ReferenceAcpiTable = &Gtdt;
+

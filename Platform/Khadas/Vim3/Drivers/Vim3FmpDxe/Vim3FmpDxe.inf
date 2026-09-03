@@ -1,0 +1,59 @@
+#
+#  Firmware Management Protocol for the VIM3's firmware image:
+#  SPI-NOR primary (when SPI-booted) plus eMMC boot-partition rescue.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3FmpDxe
+  FILE_GUID                      = 7c1e9a34-2db8-4f05-9e6a-31c07b4d8a12
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3FmpDxeEntryPoint
+
+[Sources]
+  Vim3FmpDxe.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  DevicePathLib
+  IoLib
+  MemoryAllocationLib
+  PcdLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib
+  Vim3McuLib
+
+[Guids]
+  gVim3PlatformFormSetGuid
+
+[Protocols]
+  gEfiBlockIoProtocolGuid
+  gEfiDevicePathProtocolGuid
+  gEfiFirmwareManagementProtocolGuid
+  gEmbeddedMmcHostProtocolGuid
+  gMesonNorFlashProtocolGuid
+  gVim3SpiNorInstallProtocolGuid
+
+[Pcd]
+  gVim3TokenSpaceGuid.PcdVim3FirmwareRevision
+  gVim3TokenSpaceGuid.PcdVim3FirmwareLowestSupportedVersion
+  gVim3TokenSpaceGuid.PcdVim3SystemFirmwareImageTypeIdGuid
+
+[Depex]
+  gEfiVariableArchProtocolGuid AND
+  gEfiVariableWriteArchProtocolGuid

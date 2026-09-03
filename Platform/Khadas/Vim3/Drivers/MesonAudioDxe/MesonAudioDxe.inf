@@ -1,0 +1,33 @@
+#
+#  Khadas VIM3 Meson G12B audio subsystem bring-up.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = MesonAudioDxe
+  FILE_GUID                      = f1be5db6-3d58-40ae-9272-b474749edfc2
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MesonAudioDxeEntryPoint
+
+[Sources]
+  MesonAudioDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  ArmLib
+  DebugLib
+  IoLib
+  TimerLib
+  UefiDriverEntryPoint
+
+[Depex]
+  TRUE

@@ -1,0 +1,45 @@
+## @file
+#  Khadas VIM3 DXE platform policy.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3PlatformDxe
+  FILE_GUID                      = 5A3A8BE8-C93B-4B23-A0AC-B56219E68863
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3PlatformDxeEntryPoint
+
+[Sources]
+  Vim3PlatformDxe.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  MdePkg/MdePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  DebugLib
+  DxeServicesLib
+  MemoryAllocationLib
+  MesonPcieMuxLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib
+
+[Guids]
+  gEdkiiPlatformHasDeviceTreeGuid  ## PRODUCES ## PROTOCOL
+  gVim3PlatformFormSetGuid
+  gVim3SsdtPcieFileGuid
+
+[Protocols]
+  gEfiAcpiTableProtocolGuid        ## SOMETIMES_CONSUMES
+
+[Depex]
+  gEfiVariableArchProtocolGuid

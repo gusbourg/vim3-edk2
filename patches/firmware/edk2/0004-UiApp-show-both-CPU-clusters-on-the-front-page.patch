@@ -1,0 +1,189 @@
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: UiApp show both CPU clusters on the front page
+
+Written for the Khadas VIM3 EDK2 port.
+
+Signed-off-by: Gus Bourg <gus@bourg.net>
+
+diff --git a/MdeModulePkg/Application/UiApp/FrontPage.c b/MdeModulePkg/Application/UiApp/FrontPage.c
+index 56e174fe56..856911aa84 100644
+--- a/MdeModulePkg/Application/UiApp/FrontPage.c
++++ b/MdeModulePkg/Application/UiApp/FrontPage.c
+@@ -517,7 +517,9 @@ UpdateFrontPageBannerStrings (
+   SMBIOS_TABLE_TYPE19      *Type19Record;
+   EFI_SMBIOS_TABLE_HEADER  *Record;
+   UINT64                   InstalledMemory;
+-  BOOLEAN                  FoundCpu;
++  UINTN                    FoundCpu;
++  CHAR16                   *TmpString;
++  CHAR16                   *HeaderString;
+ 
+   InstalledMemory = 0;
+   FoundCpu        = 0;
+@@ -568,13 +570,23 @@ UpdateFrontPageBannerStrings (
+     HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_CPU_SPEED), NewString, NULL);
+     FreePool (NewString);
+ 
+-    NewString = HiiGetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_BIOS_VERSION), NULL);
++    NewString = HiiGetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_CPU_MODEL2), NULL);
+     UiCustomizeFrontPageBanner (3, TRUE, &NewString);
++    HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_CPU_MODEL2), NewString, NULL);
++    FreePool (NewString);
++
++    NewString = HiiGetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_CPU_MODEL3), NULL);
++    UiCustomizeFrontPageBanner (4, TRUE, &NewString);
++    HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_CPU_MODEL3), NewString, NULL);
++    FreePool (NewString);
++
++    NewString = HiiGetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_BIOS_VERSION), NULL);
++    UiCustomizeFrontPageBanner (5, TRUE, &NewString);
+     HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_BIOS_VERSION), NewString, NULL);
+     FreePool (NewString);
+ 
+     NewString = HiiGetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_MEMORY_SIZE), NULL);
+-    UiCustomizeFrontPageBanner (3, FALSE, &NewString);
++    UiCustomizeFrontPageBanner (5, FALSE, &NewString);
+     HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_MEMORY_SIZE), NewString, NULL);
+     FreePool (NewString);
+ 
+@@ -593,10 +605,10 @@ UpdateFrontPageBannerStrings (
+       if (*FirmwareVersionString != 0x0000 ) {
+         FreePool (NewString);
+         NewString = (CHAR16 *)PcdGetPtr (PcdFirmwareVersionString);
+-        UiCustomizeFrontPageBanner (3, TRUE, &NewString);
++        UiCustomizeFrontPageBanner (5, TRUE, &NewString);
+         HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_BIOS_VERSION), NewString, NULL);
+       } else {
+-        UiCustomizeFrontPageBanner (3, TRUE, &NewString);
++        UiCustomizeFrontPageBanner (5, TRUE, &NewString);
+         HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_BIOS_VERSION), NewString, NULL);
+         FreePool (NewString);
+       }
+@@ -611,24 +623,43 @@ UpdateFrontPageBannerStrings (
+       FreePool (NewString);
+     }
+ 
+-    if ((Record->Type == SMBIOS_TYPE_PROCESSOR_INFORMATION) && !FoundCpu) {
++    if ((Record->Type == SMBIOS_TYPE_PROCESSOR_INFORMATION) && (FoundCpu < 2)) {
+       Type4Record = (SMBIOS_TABLE_TYPE4 *)Record;
+       //
+       // The information in the record should be only valid when the CPU Socket is populated.
++      // The first populated record supplies the SoC header line; the first two
++      // populated records each get a bullet line below it.
+       //
+       if ((Type4Record->Status & SMBIOS_TYPE4_CPU_SOCKET_POPULATED) == SMBIOS_TYPE4_CPU_SOCKET_POPULATED) {
++        if (FoundCpu == 0) {
++          StrIndex = Type4Record->ProcessorManufacturer;
++          GetOptionalStringByIndex ((CHAR8 *)((UINT8 *)Type4Record + Type4Record->Hdr.Length), StrIndex, &NewString);
++          StrIndex = Type4Record->PartNumber;
++          GetOptionalStringByIndex ((CHAR8 *)((UINT8 *)Type4Record + Type4Record->Hdr.Length), StrIndex, &TmpString);
++          HeaderString = CatSPrint (NULL, L"%s %s:", NewString, TmpString);
++          FreePool (NewString);
++          FreePool (TmpString);
++          NewString = HeaderString;
++          UiCustomizeFrontPageBanner (2, TRUE, &NewString);
++          HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_CPU_MODEL), NewString, NULL);
++          FreePool (NewString);
++        }
++
+         StrIndex = Type4Record->ProcessorVersion;
+         GetOptionalStringByIndex ((CHAR8 *)((UINT8 *)Type4Record + Type4Record->Hdr.Length), StrIndex, &NewString);
+-        UiCustomizeFrontPageBanner (2, TRUE, &NewString);
+-        HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_CPU_MODEL), NewString, NULL);
++        HeaderString = CatSPrint (NULL, L"  * %s", NewString);
+         FreePool (NewString);
+-
+-        ConvertProcessorToString (Type4Record->CurrentSpeed, 6, &NewString);
+-        UiCustomizeFrontPageBanner (2, FALSE, &NewString);
+-        HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_CPU_SPEED), NewString, NULL);
++        NewString = HeaderString;
++        UiCustomizeFrontPageBanner (3 + FoundCpu, TRUE, &NewString);
++        HiiSetString (
++          gFrontPagePrivate.HiiHandle,
++          (FoundCpu == 0) ? STRING_TOKEN (STR_FRONT_PAGE_CPU_MODEL2) : STRING_TOKEN (STR_FRONT_PAGE_CPU_MODEL3),
++          NewString,
++          NULL
++          );
+         FreePool (NewString);
+ 
+-        FoundCpu = TRUE;
++        FoundCpu++;
+       }
+     }
+ 
+@@ -656,7 +687,7 @@ UpdateFrontPageBannerStrings (
+   // Now update the total installed RAM size
+   //
+   ConvertMemorySizeToString ((UINT32)InstalledMemory, &NewString);
+-  UiCustomizeFrontPageBanner (3, FALSE, &NewString);
++  UiCustomizeFrontPageBanner (5, FALSE, &NewString);
+   HiiSetString (gFrontPagePrivate.HiiHandle, STRING_TOKEN (STR_FRONT_PAGE_MEMORY_SIZE), NewString, NULL);
+   FreePool (NewString);
+ }
+diff --git a/MdeModulePkg/Application/UiApp/FrontPageStrings.uni b/MdeModulePkg/Application/UiApp/FrontPageStrings.uni
+index bd6e377cc1..e796b4476b 100644
+--- a/MdeModulePkg/Application/UiApp/FrontPageStrings.uni
++++ b/MdeModulePkg/Application/UiApp/FrontPageStrings.uni
+@@ -25,6 +25,8 @@
+ #string STR_FRONT_PAGE_MEMORY_SIZE     #language en-US  ""
+                                        #language fr-FR  ""
+ #string STR_FRONT_PAGE_BIOS_VERSION    #language en-US  ""
++#string STR_FRONT_PAGE_CPU_MODEL2      #language en-US  ""
++#string STR_FRONT_PAGE_CPU_MODEL3      #language en-US  ""
+                                        #language fr-FR  ""
+ #string STR_FRONT_PAGE_BANNER_0_LEFT   #language en-US  "Wonder Computer Model 1000Z  Manufactured by Intel®"
+                                        #language fr-FR  "Demander le Modèle d'Ordinateur 1000Z A Fabriqué par Intel®"
+diff --git a/MdeModulePkg/Application/UiApp/FrontPageVfr.Vfr b/MdeModulePkg/Application/UiApp/FrontPageVfr.Vfr
+index ac40c4676e..34fa18c0a2 100644
+--- a/MdeModulePkg/Application/UiApp/FrontPageVfr.Vfr
++++ b/MdeModulePkg/Application/UiApp/FrontPageVfr.Vfr
+@@ -34,38 +34,23 @@ formset
+       align left;
+ 
+     banner
+-      title = STRING_TOKEN(STR_FRONT_PAGE_CPU_SPEED),
+-      line  2,
+-      align right;
++      title = STRING_TOKEN(STR_FRONT_PAGE_CPU_MODEL2),
++      line  3,
++      align left;
++
++    banner
++      title = STRING_TOKEN(STR_FRONT_PAGE_CPU_MODEL3),
++      line  4,
++      align left;
+ 
+     banner
+       title = STRING_TOKEN(STR_FRONT_PAGE_BIOS_VERSION),
+-      line  3,
++      line  5,
+       align left;
+ 
+     banner
+       title = STRING_TOKEN(STR_FRONT_PAGE_MEMORY_SIZE),
+-      line  3,
+-      align right;
+-
+-    banner
+-      title = STRING_TOKEN(STR_CUSTOMIZE_BANNER_LINE4_LEFT),
+-      line  4,
+-      align left;
+-
+-    banner
+-      title = STRING_TOKEN(STR_CUSTOMIZE_BANNER_LINE4_RIGHT),
+-      line  4,
+-      align right;
+-
+-    banner
+-      title = STRING_TOKEN(STR_CUSTOMIZE_BANNER_LINE5_LEFT),
+-      line  5,
+-      align left;
+-
+-    banner
+-      title = STRING_TOKEN(STR_CUSTOMIZE_BANNER_LINE5_RIGHT),
+-      line  5,
++      line  5,
+       align right;
+ 
+     label LABEL_FRONTPAGE_INFORMATION;

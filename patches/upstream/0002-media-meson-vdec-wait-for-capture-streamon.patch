@@ -1,0 +1,60 @@
+From 1725aa9c687e7ea4affbbb3a2e0ea7198949e579 Mon Sep 17 00:00:00 2001
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: [PATCH] media: meson: vdec: wait for CAPTURE streamon before starting
+ canvas-at-start codecs
+
+Codecs without a resolution-change resume op (mpeg12) program the
+CAPTURE buffer canvases exactly once, in vdec_ops->start(), from the
+buffers queued on the CAPTURE queue at that moment.  Starting them at
+OUTPUT streamon - before userspace has negotiated and streamed the
+CAPTURE queue, as GStreamer's stateful-decoder flow does - iterates an
+empty ready queue: no canvas is programmed, fw_idx_to_vb2_idx[] stays
+all-zero, every hardware buffer-done report resolves to vb2 index 0,
+and the session collapses with 'Buffer N done but it doesn't exist in
+m2m_ctx' after a handful of corrupt frames.
+
+Defer codec start for such codecs until both queues are streaming;
+vb2's min_queued_buffers guarantee on the CAPTURE queue then makes the
+full buffer list visible to amvdec_set_canvases().  Codecs with a
+resume op (h264, vp9) keep the existing early start - they need the
+esparser running to detect the resolution and program their canvases
+in resume.
+---
+NOT SUBMITTED. This patch is written in kernel submission form so that it
+can be sent as-is, but as of publication it has not been posted to linux-media,
+has had no upstream review, and is carried out-of-tree by the Khadas VIM3
+EDK2 port. The Signed-off-by below is a DCO attestation of origin, not a
+claim that this went anywhere.
+
+ drivers/staging/media/meson/vdec/vdec.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
+index 4b77ec1..b0c5337 100644
+--- a/drivers/staging/media/meson/vdec/vdec.c
++++ b/drivers/staging/media/meson/vdec/vdec.c
+@@ -299,6 +299,20 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
+ 	if (!sess->streamon_out)
+ 		return 0;
+ 
++	/*
++	 * Codecs without a resolution-change resume op program the CAPTURE
++	 * buffer canvases exactly once, in vdec_ops->start(), from the
++	 * buffers queued on the CAPTURE queue at that moment.  Starting
++	 * them at OUTPUT streamon - before userspace has negotiated and
++	 * streamed the CAPTURE queue, as GStreamer's stateful-decoder flow
++	 * does - leaves the canvas map empty, so every hardware
++	 * buffer-done report resolves to buffer 0 and the session
++	 * collapses.  Codecs with a resume op reprogram the canvases when
++	 * the CAPTURE side appears and may start immediately.
++	 */
++	if (!codec_ops->resume && !sess->streamon_cap)
++		return 0;
++
+ 	if (sess->status == STATUS_NEEDS_RESUME &&
+ 	    q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
+ 	    sess->changed_format) {
+-- 
+2.53.0
+

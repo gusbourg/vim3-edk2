@@ -1,0 +1,28 @@
+## @file
+#  Conditionally-installed video-decoder SSDT for the Khadas VIM3
+#  (ACPI mode).
+#
+#  Built into its own FFS file (FILE_GUID below) so AcpiPlatformDxe does
+#  NOT auto-publish it with the static set; MesonDisplayDxe fetches the
+#  RAW section by this GUID and installs it under the same gate as the
+#  display and audio SSDTs (ACPI mode + successful VPU/HDMI bring-up -
+#  the decoder references the canvas provider declared in SsdtDisplay).
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = Vim3SsdtVdec
+  # Must equal gVim3SsdtVdecFileGuid in Vim3.dec (the installer's lookup key).
+  FILE_GUID                      = d50ba458-b3a1-4d1d-a14a-56956cf432d9
+  MODULE_TYPE                    = USER_DEFINED
+  VERSION_STRING                 = 1.0
+
+[Sources]
+  SsdtVdec.asl
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec

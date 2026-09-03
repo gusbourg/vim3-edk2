@@ -1,0 +1,23 @@
+## @file
+#  Amlogic Meson G12B silicon package.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  DEC_SPECIFICATION              = 0x0001001B
+  PACKAGE_NAME                   = MesonG12B
+  PACKAGE_GUID                   = e5234310-2b4c-4de9-87ca-9173498bb64b
+  PACKAGE_VERSION                = 0.1
+
+[Includes]
+  Include
+
+[LibraryClasses]
+  ##  @libraryclass  Board-level USB3/PCIe shared-lane mux query.
+  MesonPcieMuxLib|Include/Library/MesonPcieMuxLib.h
+
+[Protocols]
+  ## Raw SPI-NOR access below the FVB, for the platform FMP.
+  gMesonNorFlashProtocolGuid = { 0x17cd2784, 0x1b3c, 0x4012, { 0xaf, 0x1a, 0xb8, 0x48, 0x42, 0x28, 0x2c, 0xdb } }

@@ -1,0 +1,116 @@
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: DwEmac use normal descriptor layout
+
+Written for the Khadas VIM3 EDK2 port.
+
+Signed-off-by: Gus Bourg <gus@bourg.net>
+
+diff --git a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.c b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.c
+--- a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.c
++++ b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/DwEmacSnpDxe.c
+@@ -1002,12 +1002,12 @@
+   }
+   TxDescriptorMap->Addr = TxBufferAddrMap;
+ 
+-  TxDescriptor->Tdes1 = (BuffSize << TDES1_SIZE1SHFT) &
+-                         TDES1_SIZE1MASK;
+-
+-  TxDescriptor->Tdes0 |= (TDES0_TXFIRST |
+-                          TDES0_TXLAST |
+-                          TDES0_OWN);
++  TxDescriptor->Tdes1 = TDES1_TXCHAIN |
++                        TDES1_TXFIRST |
++                        TDES1_TXLAST |
++                        ((BuffSize << TDES1_SIZE1SHFT) &
++                         TDES1_SIZE1MASK);
++  TxDescriptor->Tdes0 = TDES0_OWN;
+ 
+   // Increase descriptor number
+   DescNum++;
+diff --git a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.c b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.c
+--- a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.c
++++ b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.c
+@@ -154,7 +154,9 @@
+   // 5. Program the interface options in Register 10 (AXI Bus Mode Register). If fixed burst-length is enabled,
+   // then select the maximum burst-length possible on the bus (bits[7:1]).�
+ 
+-  DmaConf = DW_EMAC_DMAGRP_BUS_MODE_FB_SET_MSK | DW_EMAC_DMAGRP_BUS_MODE_PBL_SET_MSK | DW_EMAC_DMAGRP_BUS_MODE_PR_SET_MSK;
++  DmaConf = DW_EMAC_DMAGRP_BUS_MODE_FB_SET_MSK |
++            DW_EMAC_DMAGRP_BUS_MODE_PBL_8 |
++            DW_EMAC_DMAGRP_BUS_MODE_PR_4_1;
+   MmioOr32 (MacBaseAddress +
+             DW_EMAC_DMAGRP_BUS_MODE_OFST,
+             DmaConf);
+@@ -248,8 +250,8 @@
+     if (Index < 9) {
+       TxDescriptor->AddrNext = (UINT32)(UINTN)EmacDriver->TxdescRingMap[Index + 1].AddrMap;
+     }
+-    TxDescriptor->Tdes0 = TDES0_TXCHAIN;
+-    TxDescriptor->Tdes1 = 0;
++    TxDescriptor->Tdes0 = 0;
++    TxDescriptor->Tdes1 = TDES1_TXCHAIN;
+   }
+ 
+   // Correcting the last pointer of the chain
+@@ -285,7 +287,8 @@
+       RxDescriptor->AddrNext = (UINT32)(UINTN)EmacDriver->RxdescRingMap[Index + 1].AddrMap;
+     }
+     RxDescriptor->Tdes0 = RDES0_OWN;
+-    RxDescriptor->Tdes1 = RDES1_CHAINED | RX_MAX_PACKET;
++    RxDescriptor->Tdes1 = RDES1_CHAINED |
++                          (RX_MAX_PACKET & RDES1_SIZE1MASK);
+   }
+ 
+   // Correcting the last pointer of the chain
+diff --git a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.h b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.h
+--- a/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.h
++++ b/Silicon/Synopsys/DesignWare/Drivers/DwEmacSnpDxe/EmacDxeUtil.h
+@@ -38,24 +38,25 @@
+ #define RX_DMA_DESCRIPTOR_READ_ACCESS_ERROR                        0x6
+ #define TX_DMA_DESCRIPTOR_READ_ACCESS_ERROR                        0x7
+ 
+-// tx descriptor
++// Normal (16-byte) tx descriptor
+ #define TDES0_OWN                                                  BIT31
+-#define TDES0_TXINT                                                BIT30
+-#define TDES0_TXLAST                                               BIT29
+-#define TDES0_TXFIRST                                              BIT28
+-#define TDES0_TXCRCDIS                                             BIT27
+-#define TDES0_TXRINGEND                                            BIT21
+-#define TDES0_TXCHAIN                                              BIT20
+ 
+-#define TDES1_SIZE1MASK                                            (0x1FFF << 0)
++#define TDES1_TXINT                                                BIT31
++#define TDES1_TXLAST                                               BIT30
++#define TDES1_TXFIRST                                              BIT29
++#define TDES1_TXCRCDIS                                             BIT26
++#define TDES1_TXRINGEND                                            BIT25
++#define TDES1_TXCHAIN                                              BIT24
++#define TDES1_SIZE1MASK                                            (0x7FF << 0)
+ #define TDES1_SIZE1SHFT                                            (0)
+-#define TDES1_SIZE2MASK                                            (0x1FFF << 16)
+-#define TDES1_SIZE2SHFT                                            (16)
++#define TDES1_SIZE2MASK                                            (0x7FF << 11)
++#define TDES1_SIZE2SHFT                                            (11)
+ 
+ // rx descriptor
+ #define RDES0_FL_MASK                                               0x3fff
+ #define RDES0_FL_SHIFT                                              16
+-#define RDES1_CHAINED                                               BIT14
++#define RDES1_CHAINED                                               BIT24
++#define RDES1_SIZE1MASK                                             (0x7FF << 0)
+ 
+ #define RDES0_CE                                                    BIT1
+ #define RDES0_DBE                                                   BIT2
+@@ -81,8 +82,8 @@
+ // DW emac mask
+ #define DW_EMAC_DMAGRP_BUS_MODE_SWR_SET_MSK                         0x00000001
+ #define DW_EMAC_DMAGRP_BUS_MODE_FB_SET_MSK                          0x00010000
+-#define DW_EMAC_DMAGRP_BUS_MODE_PBL_SET_MSK                         0x00003f00
+-#define DW_EMAC_DMAGRP_BUS_MODE_PR_SET_MSK                          0x0000c000
++#define DW_EMAC_DMAGRP_BUS_MODE_PBL_8                               (8U << 8)
++#define DW_EMAC_DMAGRP_BUS_MODE_PR_4_1                              (3U << 14)
+ #define DW_EMAC_DMAGRP_OPERATION_MODE_FTF_SET_MSK                   0x00100000
+ #define DW_EMAC_DMAGRP_OPERATION_MODE_TSF_SET_MSK                   0x00200000
+ #define DW_EMAC_DMAGRP_INTERRUPT_ENABLE_TIE_SET_MSK                 0x00000001

@@ -1,0 +1,35 @@
+From b2a78ce00c286188075b1443fd2ea202dc3d4ffe Mon Sep 17 00:00:00 2001
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: [PATCH] ASoC: meson: g12a-tohdmitx: reset via device_reset_optional
+ under ACPI
+
+The device is reset through an AML _RST method under ACPI, and only
+the optional device_reset variant stops after evaluating it - the
+non-optional variant falls through to an OF/lookup reset-control get
+that cannot succeed without an of_node and fails the probe -ENOENT.
+---
+ sound/soc/meson/g12a-tohdmitx.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/meson/g12a-tohdmitx.c b/sound/soc/meson/g12a-tohdmitx.c
+index d541ca4..7a19d09 100644
+--- a/sound/soc/meson/g12a-tohdmitx.c
++++ b/sound/soc/meson/g12a-tohdmitx.c
+@@ -249,7 +249,12 @@ static int g12a_tohdmitx_probe(struct platform_device *pdev)
+ 	struct regmap *map;
+ 	int ret;
+ 
+-	ret = device_reset(dev);
++	/*
++	 * Under ACPI the reset is an AML _RST method; only the optional
++	 * variant of device_reset() stops after evaluating it (the
++	 * non-optional variant still demands an OF/lookup reset control).
++	 */
++	ret = dev->of_node ? device_reset(dev) : device_reset_optional(dev);
+ 	if (ret)
+ 		return ret;
+ 
+-- 
+2.53.0
+

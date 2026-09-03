@@ -1,0 +1,43 @@
+#
+#  Khadas VIM3 Meson G12B DesignWare Ethernet platform glue.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = MesonEthDxe
+  FILE_GUID                      = 4673ee66-78f7-4c84-979e-858b46b085af
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MesonEthDxeEntryPoint
+
+[Sources]
+  MesonEthDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+  Silicon/Synopsys/DesignWare/DesignWare.dec
+
+[LibraryClasses]
+  ArmLib
+  DebugLib
+  IoLib
+  MemoryAllocationLib
+  TimerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  Vim3MesonSmLib
+
+[Protocols]
+  gEdkiiNonDiscoverableDeviceProtocolGuid
+
+[Guids]
+  gDwEmacNetNonDiscoverableDeviceGuid
+
+[Depex]
+  TRUE

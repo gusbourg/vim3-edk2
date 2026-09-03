@@ -1,0 +1,27 @@
+#
+#  MesonPcieMuxLib for the Khadas VIM3: asks the onboard MCU (register 0x33)
+#  which way the shared USB3/PCIe lane is switched.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3PcieMuxLib
+  FILE_GUID                      = 7c1e3a52-9b0d-4d2e-b1a4-6f0d0a4c15e9
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = MesonPcieMuxLib
+
+[Sources]
+  Vim3PcieMuxLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  DebugLib
+  Vim3McuLib

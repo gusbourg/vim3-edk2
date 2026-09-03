@@ -1,0 +1,107 @@
+From 696ad34ae298a6f9404fa02cba15bffd33b73c3b Mon Sep 17 00:00:00 2001
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: [PATCH] EmbeddedPkg/MmcDxe: Fall back to 4-bit eMMC bus
+
+InitializeEmmcDevice tries multiple timing modes, but requests an 8-bit
+bus for every attempt. A host that cannot route the upper four data lines
+therefore rejects every mode even when the eMMC and host both support a
+4-bit transfer.
+
+After exhausting the 8-bit timing choices, retry the same modes at 4 bits
+and program EXT_CSD BUS_WIDTH to match the width accepted by the host.
+
+Signed-off-by: Gus Bourg <gus@bourg.net>
+---
+ .../Universal/MmcDxe/MmcIdentification.c      | 57 +++++++++++--------
+ 1 file changed, 32 insertions(+), 25 deletions(-)
+
+diff --git a/EmbeddedPkg/Universal/MmcDxe/MmcIdentification.c b/EmbeddedPkg/Universal/MmcDxe/MmcIdentification.c
+index fed1646b27..6ea15399da 100755
+--- a/EmbeddedPkg/Universal/MmcDxe/MmcIdentification.c
++++ b/EmbeddedPkg/Universal/MmcDxe/MmcIdentification.c
+@@ -263,8 +263,9 @@ InitializeEmmcDevice (
+   EFI_MMC_HOST_PROTOCOL  *Host;
+   EFI_STATUS             Status = EFI_SUCCESS;
+   ECSD                   *ECSDData;
+-  UINT32                 BusClockFreq, Idx, BusMode;
++  UINT32                 BusClockFreq, Idx, WidthIdx, BusMode;
+   UINT32                 TimingMode[4] = { EMMCHS52DDR1V2, EMMCHS52DDR1V8, EMMCHS52, EMMCHS26 };
++  UINT32                 BusWidth[2]   = { 8, 4 };
+ 
+   Host     = MmcHostInstance->MmcHost;
+   ECSDData = MmcHostInstance->CardInfo.ECSDData;
+@@ -282,41 +283,47 @@ InitializeEmmcDevice (
+     return Status;
+   }
+ 
+-  for (Idx = 0; Idx < 4; Idx++) {
+-    switch (TimingMode[Idx]) {
+-      case EMMCHS52DDR1V2:
+-      case EMMCHS52DDR1V8:
+-      case EMMCHS52:
+-        BusClockFreq = 52000000;
+-        break;
+-      case EMMCHS26:
+-        BusClockFreq = 26000000;
+-        break;
+-      default:
+-        return EFI_UNSUPPORTED;
+-    }
+-
+-    Status = Host->SetIos (Host, BusClockFreq, 8, TimingMode[Idx]);
+-    if (!EFI_ERROR (Status)) {
++  for (WidthIdx = 0; WidthIdx < ARRAY_SIZE (BusWidth); WidthIdx++) {
++    for (Idx = 0; Idx < ARRAY_SIZE (TimingMode); Idx++) {
+       switch (TimingMode[Idx]) {
+         case EMMCHS52DDR1V2:
+         case EMMCHS52DDR1V8:
+-          BusMode = EMMC_BUS_WIDTH_DDR_8BIT;
+-          break;
+         case EMMCHS52:
++          BusClockFreq = 52000000;
++          break;
+         case EMMCHS26:
+-          BusMode = EMMC_BUS_WIDTH_8BIT;
++          BusClockFreq = 26000000;
+           break;
+         default:
+           return EFI_UNSUPPORTED;
+       }
+ 
+-      Status = EmmcSetEXTCSD (MmcHostInstance, EXTCSD_BUS_WIDTH, BusMode);
+-      if (EFI_ERROR (Status)) {
+-        DEBUG ((DEBUG_ERROR, "InitializeEmmcDevice(): Failed to set EXTCSD bus width, Status:%r\n", Status));
+-      }
++      Status = Host->SetIos (Host, BusClockFreq, BusWidth[WidthIdx], TimingMode[Idx]);
++      if (!EFI_ERROR (Status)) {
++        switch (TimingMode[Idx]) {
++          case EMMCHS52DDR1V2:
++          case EMMCHS52DDR1V8:
++            BusMode = (BusWidth[WidthIdx] == 8) ?
++                      EMMC_BUS_WIDTH_DDR_8BIT :
++                      EMMC_BUS_WIDTH_DDR_4BIT;
++            break;
++          case EMMCHS52:
++          case EMMCHS26:
++            BusMode = (BusWidth[WidthIdx] == 8) ?
++                      EMMC_BUS_WIDTH_8BIT :
++                      EMMC_BUS_WIDTH_4BIT;
++            break;
++          default:
++            return EFI_UNSUPPORTED;
++        }
+ 
+-      return Status;
++        Status = EmmcSetEXTCSD (MmcHostInstance, EXTCSD_BUS_WIDTH, BusMode);
++        if (EFI_ERROR (Status)) {
++          DEBUG ((DEBUG_ERROR, "InitializeEmmcDevice(): Failed to set EXT_CSD bus width, Status:%r\n", Status));
++        }
++
++        return Status;
++      }
+     }
+   }
+ 
+-- 
+2.53.0

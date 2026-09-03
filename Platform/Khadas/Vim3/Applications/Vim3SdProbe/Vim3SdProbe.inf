@@ -1,0 +1,36 @@
+## @file
+#  Watchdog-guarded VIM3 inactive-SD controller diagnostic.
+#
+#  This application is build-only and is never embedded in the production FV.
+#  Run one numbered stage at a time from the UEFI shell on an eMMC-origin boot.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3SdProbe
+  FILE_GUID                      = 9de40458-a55d-46c4-b877-99ff838eb5c8
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3SdProbeEntryPoint
+
+[Sources]
+  Vim3SdProbe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  ArmLib
+  BaseLib
+  DebugLib
+  IoLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiLib
+
+[Protocols]
+  gEfiLoadedImageProtocolGuid

@@ -1,0 +1,28 @@
+#
+#  Amlogic Meson G12B secure-monitor (BL31) eFUSE / chip-id access.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3MesonSmLib
+  FILE_GUID                      = 4078078e-f26a-441c-8807-2ac4af6aa8f2
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = Vim3MesonSmLib
+
+[Sources]
+  Vim3MesonSmLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  ArmSmcLib
+  BaseMemoryLib
+  DebugLib
+  IoLib

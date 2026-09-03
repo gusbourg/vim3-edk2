@@ -1,0 +1,40 @@
+#
+#  Build-only UEFI application wrapper for the VIM3 MCU driver.
+#
+#  This image is intentionally not placed in the firmware volume.  It lets
+#  the exact production source be exercised through BootNext from removable
+#  media before a candidate firmware is promoted.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3McuTest
+  FILE_GUID                      = 36cad866-7f61-4db8-a4b6-ea6b3102c97e
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3McuDxeEntryPoint
+
+[Sources]
+  Vim3McuTest.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiLib
+  UefiRuntimeServicesTableLib
+  Vim3McuLib
+
+[Guids]
+  gVim3PlatformFormSetGuid

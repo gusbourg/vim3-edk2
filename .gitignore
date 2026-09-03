@@ -1,0 +1,19 @@
+# Generated firmware and packaging workspaces.  Reproducible from a build.
+/out/
+
+# Local editor, Python, and tooling state.
+/.cache/
+/.venv/
+__pycache__/
+*.py[cod]
+*.swp
+*~
+
+# Out-of-tree kernel module build output (source is Kbuild + the .c file).
+patches/linux/*/*.ko
+patches/linux/*/*.o
+patches/linux/*/*.mod
+patches/linux/*/*.mod.c
+patches/linux/*/.*.cmd
+patches/linux/*/Module.symvers
+patches/linux/*/modules.order

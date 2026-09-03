@@ -1,0 +1,38 @@
+## @file
+#  Amlogic Meson G12B USB2 host and XHCI registration driver.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 1.30
+  BASE_NAME                      = MesonUsbDxe
+  FILE_GUID                      = 8ea01725-14af-47c5-b1c8-5c5bfad59f37
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MesonUsbDxeEntryPoint
+
+[Sources]
+  MesonUsbDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  ArmLib
+  DebugLib
+  IoLib
+  MesonPcieMuxLib
+  NonDiscoverableDeviceRegistrationLib
+  TimerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Protocols]
+  gEdkiiNonDiscoverableDeviceProtocolGuid
+
+[Depex]
+  TRUE

@@ -1,0 +1,268 @@
+From 0de4fea5d035b9ae7984dd5c58703e144d96059c Mon Sep 17 00:00:00 2001
+From: Jared Pan <jared.pan@dell.com>
+Date: Tue, 23 Jun 2026 10:36:15 +0800
+Subject: [PATCH] MdeModulePkg/UsbBusDxe: Improve USB enumerating process
+
+The patch enhances the USB enumeration process in EDK2 to improve compatibility with non-standards-compliant devices that may fail during standard enumeration sequences.
+The suggested solution is based on USB specifications and references implementations from both Linux and Windows environments.
+
+[Suggested solution]
+- Integrated a retry mechanism to sequentially execute enumeration scripts, inspired by the enumeration flows of Windows, Linux, and EDK2. This improves robustness when handling corner-case devices.
+- Do sanity check while the device report the device descriptor.
+- AMD XHCI might need to wait for more time while sending the CLEAR_FEATURE reuqest.
+
+Signed-off-by: Marlboro Chuang <marlboro.chuang@dell.com>
+Signed-off-by: Jared Pan <jared.pan@dell.com>
+---
+ MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBus.h    | 11 ++++
+ MdeModulePkg/Bus/Usb/UsbBusDxe/UsbDesc.c   | 50 ++++++++++++--
+ MdeModulePkg/Bus/Usb/UsbBusDxe/UsbEnumer.c | 76 +++++++++++++++++++---
+ 3 files changed, 121 insertions(+), 16 deletions(-)
+
+diff --git a/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBus.h b/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBus.h
+index 10f4533b5d..ac0cbab359 100644
+--- a/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBus.h
++++ b/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBus.h
+@@ -142,6 +142,16 @@ typedef struct _USB_HUB_API    USB_HUB_API;
+ #define USB_BUS_FROM_THIS(a) \
+           CR(a, USB_BUS, BusId, USB_BUS_SIGNATURE)
+ 
++#define USB_CONFIG_DESC_DEF_ALLOC_LEN  255
++
++typedef enum {
++  UsbEnumScriptEdk2    = 0,         // 0   :EDK2 flow
++  UsbEnumScriptRsrv    = 1,         // 1   :Reserved flow - EDK2
++  UsbEnumScriptLinux   = 2,         // 2   :Linux flow
++  UsbEnumScriptWin     = 3,         // 3   :Window flow
++  UsbEnumScriptUnknown = 0xFF,      // 0xff:Unknow flow
++} USB_ENUM_SCRIPT_TYPE;
++
+ //
+ // Used to locate USB_BUS
+ // UsbBusProtocol is the private protocol.
+@@ -187,6 +197,7 @@ struct _USB_DEVICE {
+   UINT8                                 ParentPort; // Start at 0
+   UINT8                                 Tier;
+   BOOLEAN                               DisconnectFail;
++  UINT8                                 EnumScript;
+ };
+ 
+ //
+diff --git a/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbDesc.c b/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbDesc.c
+index 8b078e7e49..f0c3cc7ced 100644
+--- a/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbDesc.c
++++ b/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbDesc.c
+@@ -611,6 +611,21 @@ UsbGetDevDesc (
+   if (EFI_ERROR (Status)) {
+     gBS->FreePool (DevDesc);
+   } else {
++    // Do DevDesc sanity check
++    if (  (DevDesc->Desc.DescriptorType != USB_DESC_TYPE_DEVICE)
++       || (DevDesc->Desc.Length != sizeof (EFI_USB_DEVICE_DESCRIPTOR))
++       || (  (UsbDev->Speed != EFI_USB_SPEED_SUPER)
++          && (DevDesc->Desc.MaxPacketSize0 != 8)
++          && (DevDesc->Desc.MaxPacketSize0 != 16)
++          && (DevDesc->Desc.MaxPacketSize0 != 32)
++          && (DevDesc->Desc.MaxPacketSize0 != 64))
++       || (DevDesc->Desc.NumConfigurations == 0))
++    {
++      gBS->FreePool (DevDesc);
++      Status = EFI_DEVICE_ERROR;
++      return Status;
++    }
++
+     UsbDev->DevDesc = DevDesc;
+   }
+ 
+@@ -751,12 +766,31 @@ UsbGetOneConfig (
+   EFI_USB_CONFIG_DESCRIPTOR  Desc;
+   EFI_STATUS                 Status;
+   VOID                       *Buf;
++  UINT8                      BufDesc[USB_CONFIG_DESC_DEF_ALLOC_LEN];
+ 
+   //
+   // First get four bytes which contains the total length
+   // for this configuration.
+   //
+-  Status = UsbCtrlGetDesc (UsbDev, USB_DESC_TYPE_CONFIG, Index, 0, &Desc, 8);
++  switch (UsbDev->EnumScript) {
++    case UsbEnumScriptWin:
++      ZeroMem (BufDesc, USB_CONFIG_DESC_DEF_ALLOC_LEN);
++      Status = UsbCtrlGetDesc (UsbDev, USB_DESC_TYPE_CONFIG, Index, 0, BufDesc, USB_CONFIG_DESC_DEF_ALLOC_LEN);
++      if (!EFI_ERROR (Status)) {
++        CopyMem (&Desc, BufDesc, sizeof (EFI_USB_CONFIG_DESCRIPTOR));
++      }
++
++      break;
++    case UsbEnumScriptLinux:
++      Status = UsbCtrlGetDesc (UsbDev, USB_DESC_TYPE_CONFIG, Index, 0, &Desc, sizeof (EFI_USB_CONFIG_DESCRIPTOR));
++      break;
++    case UsbEnumScriptRsrv:
++    case UsbEnumScriptEdk2:
++    case UsbEnumScriptUnknown:
++    default:
++      Status = UsbCtrlGetDesc (UsbDev, USB_DESC_TYPE_CONFIG, Index, 0, &Desc, 8);
++      break;
++  }
+ 
+   if (EFI_ERROR (Status)) {
+     DEBUG ((
+@@ -784,13 +818,17 @@ UsbGetOneConfig (
+     return NULL;
+   }
+ 
+-  Status = UsbCtrlGetDesc (UsbDev, USB_DESC_TYPE_CONFIG, Index, 0, Buf, Desc.TotalLength);
++  if ((UsbDev->EnumScript == UsbEnumScriptWin) && (Desc.TotalLength <= USB_CONFIG_DESC_DEF_ALLOC_LEN)) {
++    CopyMem (Buf, BufDesc, Desc.TotalLength);
++  } else {
++    Status = UsbCtrlGetDesc (UsbDev, USB_DESC_TYPE_CONFIG, Index, 0, Buf, Desc.TotalLength);
+ 
+-  if (EFI_ERROR (Status)) {
+-    DEBUG ((DEBUG_ERROR, "UsbGetOneConfig: failed to get full descript - %r\n", Status));
++    if (EFI_ERROR (Status)) {
++      DEBUG ((DEBUG_ERROR, "UsbGetOneConfig: failed to get full descript - %r\n", Status));
+ 
+-    FreePool (Buf);
+-    return NULL;
++      FreePool (Buf);
++      return NULL;
++    }
+   }
+ 
+   return Buf;
+diff --git a/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbEnumer.c b/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbEnumer.c
+index 4b8d01d7fb..82c9a4f9ef 100644
+--- a/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbEnumer.c
++++ b/MdeModulePkg/Bus/Usb/UsbBusDxe/UsbEnumer.c
+@@ -233,6 +233,7 @@ UsbCreateDevice (
+   Device->ParentIf   = ParentIf;
+   Device->ParentPort = ParentPort;
+   Device->Tier       = (UINT8)(ParentIf->Device->Tier + 1);
++  Device->EnumScript = 0;
+   return Device;
+ }
+ 
+@@ -673,6 +674,8 @@ UsbEnumerateNewDev (
+   UINTN                Address;
+   UINT8                Config;
+   EFI_STATUS           Status;
++  EFI_STATUS           OriginalStatus;
++  UINT8                RetryCount;
+ 
+   Parent  = HubIf->Device;
+   Bus     = Parent->Bus;
+@@ -706,6 +709,9 @@ UsbEnumerateNewDev (
+     return EFI_OUT_OF_RESOURCES;
+   }
+ 
++  RetryCount = 3;
++
++DeviceRetry:
+   //
+   // OK, now identify the device speed. After reset, hub
+   // fully knows the actual device speed.
+@@ -717,9 +723,28 @@ UsbEnumerateNewDev (
+     goto ON_ERROR;
+   }
+ 
++  //
++  // RetryCount is used to execute the different enum scripts.
++  // Current the diffrence is only for getting Configuration Descriptor.
++  // +--------------------+---+----------------------------------------------------+
++  // | UsbEnumScriptWin   | 3 | UsbGetOneConfig get the descriptor with 255 bytes  |
++  // +--------------------+---+----------------------------------------------------+
++  // | UsbEnumScriptLinux | 2 | UsbGetOneConfig get the descriptor with            |
++  // |                    |   | ConfigurationDescriptor Length.                    |
++  // +--------------------+---+----------------------------------------------------+
++  // | UsbEnumScriptRsrv  | 1 | UsbGetOneConfig get the descriptor with 8 bytes    |
++  // |                    |   | and then get the total length. (Same as Edk2 flow) |
++  // +--------------------+---+----------------------------------------------------+
++  // | UsbEnumScriptEdk2  | 0 | UsbGetOneConfig get the descriptor with 8 bytes    |
++  // |                    |   | and then get the total length.                     |
++  // +--------------------+--------------------------------------------------------+
++  //
++  Child->EnumScript = RetryCount;
++
+   if (!USB_BIT_IS_SET (PortState.PortStatus, USB_PORT_STAT_CONNECTION)) {
+     DEBUG ((DEBUG_ERROR, "UsbEnumerateNewDev: No device present at port %d\n", Port));
+-    Status = EFI_NOT_FOUND;
++    Status     = EFI_NOT_FOUND;
++    RetryCount = 0;
+     goto ON_ERROR;
+   } else if (USB_BIT_IS_SET (PortState.PortStatus, USB_PORT_STAT_SUPER_SPEED)) {
+     Child->Speed      = EFI_USB_SPEED_SUPER;
+@@ -773,17 +798,23 @@ UsbEnumerateNewDev (
+   // ADDRESS state. Address zero is reserved for root hub.
+   //
+   ASSERT (Bus->MaxDevices <= 256);
+-  for (Address = 1; Address < Bus->MaxDevices; Address++) {
+-    if (Bus->Devices[Address] == NULL) {
+-      break;
++  if (Child->Address == 0) {
++    for (Address = 1; Address < Bus->MaxDevices; Address++) {
++      if (Bus->Devices[Address] == NULL) {
++        break;
++      }
+     }
+-  }
+ 
+-  if (Address >= Bus->MaxDevices) {
+-    DEBUG ((DEBUG_ERROR, "UsbEnumerateNewDev: address pool is full for port %d\n", Port));
++    if (Address >= Bus->MaxDevices) {
++      DEBUG ((DEBUG_ERROR, "UsbEnumerateNewDev: address pool is full for port %d\n", Port));
+ 
+-    Status = EFI_ACCESS_DENIED;
+-    goto ON_ERROR;
++      Status = EFI_ACCESS_DENIED;
++      goto ON_ERROR;
++    }
++  } else {
++    Address               = Child->Address;
++    Child->Address        = 0;
++    Bus->Devices[Address] = NULL;
+   }
+ 
+   Status                = UsbSetAddress (Child, (UINT8)Address);
+@@ -858,6 +889,31 @@ UsbEnumerateNewDev (
+   return EFI_SUCCESS;
+ 
+ ON_ERROR:
++  //
++  // Do the error handling with retry counter.
++  //
++  OriginalStatus = Status;
++  Status         = HubApi->GetPortStatus (HubIf, Port, &PortState);
++  if (EFI_ERROR (Status) || (!USB_BIT_IS_SET (PortState.PortStatus, USB_PORT_STAT_CONNECTION))) {
++    DEBUG ((DEBUG_ERROR, "Device is gone. Don't reset the port\n"));
++    Status = EFI_NOT_FOUND;
++  }
++
++  if (!EFI_ERROR (Status) && (RetryCount > 0)) {
++    RetryCount--;
++    DEBUG ((DEBUG_INFO, "Reset the port due to Error\n"));
++    if ((Child != NULL) && (Child->DevDesc != NULL)) {
++      UsbFreeDevDesc (Child->DevDesc);
++      Child->DevDesc = NULL;
++    }
++
++    Status = HubApi->ResetPort (HubIf, Port);
++    if (!EFI_ERROR (Status)) {
++      gBS->Stall (USB_WAIT_PORT_STABLE_STALL);
++      goto DeviceRetry;
++    }
++  }
++
+   //
+   // If reach here, it means the enumeration process on a given port is interrupted due to error.
+   // The s/w resources, including the assigned address(Address) and the allocated usb device data
+@@ -872,7 +928,7 @@ ON_ERROR:
+   //
+   // EDKII UHCI/EHCI doesn't get impacted as it's make sense to reserve s/w resource till it gets unplugged.
+   //
+-  return Status;
++  return OriginalStatus;
+ }
+ 
+ /**
+-- 
+2.53.0

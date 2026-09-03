@@ -1,0 +1,27 @@
+## @file
+#  Conditionally-installed display-pipeline SSDT for the Khadas VIM3
+#  (ACPI mode).
+#
+#  Built into its own FFS file (FILE_GUID below) so AcpiPlatformDxe does
+#  NOT auto-publish it with the static set; MesonDisplayDxe fetches the
+#  RAW section by this GUID and installs it only when the OS hardware
+#  description is ACPI and its own VPU/HDMI bring-up completed.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = Vim3SsdtDisplay
+  # Must equal gVim3SsdtDisplayFileGuid in Vim3.dec (the installer's lookup key).
+  FILE_GUID                      = 4c8a2f17-95d3-4e6b-b1c0-8f27a30d64e5
+  MODULE_TYPE                    = USER_DEFINED
+  VERSION_STRING                 = 1.0
+
+[Sources]
+  SsdtDisplay.asl
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec

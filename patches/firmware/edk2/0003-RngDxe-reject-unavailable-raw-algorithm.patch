@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: [PATCH] SecurityPkg/RngDxe: Reject unavailable raw algorithm
+
+The AArch64 implementation only adds EFI_RNG_ALGORITHM_RAW to the
+advertised algorithm array when GetArmTrngVersion() finds a firmware TRNG
+backend.  RngGetRNG(), however, unconditionally calls GenerateEntropy()
+whenever a caller explicitly requests RAW.
+
+With BaseArmTrngLibNull this violates the protocol's advertised contract
+and reaches functions which deliberately assert because no backend exists.
+This is observable when an EFI OS loader asks for RAW entropy even though
+GetInfo() did not advertise it.
+
+Only dispatch RAW requests when RAW is present in the available algorithm
+array.  Otherwise return EFI_UNSUPPORTED as required for an unavailable
+algorithm.
+
+Signed-off-by: Gus Bourg <gus@bourg.net>
+---
+ SecurityPkg/RandomNumberGenerator/RngDxe/ArmRngDxe.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/SecurityPkg/RandomNumberGenerator/RngDxe/ArmRngDxe.c b/SecurityPkg/RandomNumberGenerator/RngDxe/ArmRngDxe.c
+index 510fc3f7b7..4be3c65b64 100644
+--- a/SecurityPkg/RandomNumberGenerator/RngDxe/ArmRngDxe.c
++++ b/SecurityPkg/RandomNumberGenerator/RngDxe/ArmRngDxe.c
+@@ -82,6 +82,7 @@ RngGetRNG (
+ {
+   EFI_STATUS  Status;
+   GUID        RngGuid;
++  UINTN       Index;
+ 
+   if ((This == NULL) || (RNGValueLength == 0) || (RNGValue == NULL)) {
+     return EFI_INVALID_PARAMETER;
+@@ -104,7 +105,17 @@ RngGetRNG (
+ 
+   // Raw algorithm (Trng)
+   if (CompareGuid (RNGAlgorithm, &gEfiRngAlgorithmRaw)) {
+-    return GenerateEntropy (RNGValueLength, RNGValue);
++    for (Index = 0; Index < mAvailableAlgoArrayCount; Index++) {
++      if (CompareGuid (
++            &mAvailableAlgoArray[Index],
++            &gEfiRngAlgorithmRaw
++            ))
++      {
++        return GenerateEntropy (RNGValueLength, RNGValue);
++      }
++    }
++
++    return EFI_UNSUPPORTED;
+   }
+ 
+   //
+-- 
+2.43.0

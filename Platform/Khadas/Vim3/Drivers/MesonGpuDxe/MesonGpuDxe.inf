@@ -1,0 +1,31 @@
+#
+#  Khadas VIM3 Meson G12B Mali G52 power-on.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = MesonGpuDxe
+  FILE_GUID                      = 8b1c9df3-6a44-4f2b-9c05-3e7a51b0d2c6
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MesonGpuDxeEntryPoint
+
+[Sources]
+  MesonGpuDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  ArmLib
+  DebugLib
+  IoLib
+  TimerLib
+  UefiDriverEntryPoint
+
+[Depex]
+  TRUE

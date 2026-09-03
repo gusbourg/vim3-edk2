@@ -1,0 +1,25 @@
+#
+#  Khadas VIM3 onboard MCU access library.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3McuLib
+  FILE_GUID                      = fda0e8af-b68f-4f44-9775-4e4d2137ea78
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = Vim3McuLib
+
+[Sources]
+  Vim3McuLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+
+[LibraryClasses]
+  DebugLib
+  Vim3AoI2cLib

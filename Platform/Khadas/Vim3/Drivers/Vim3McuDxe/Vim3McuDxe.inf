@@ -1,0 +1,55 @@
+#
+#  Khadas VIM3 MCU fan and setup driver.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3McuDxe
+  FILE_GUID                      = d68d4e68-4cbe-40c6-93b0-de549a0b4fea
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3McuDxeEntryPoint
+
+[Sources]
+  Vim3McuDxe.c
+  Vim3McuDxeHii.vfr
+  Vim3McuDxeHii.uni
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Khadas/Vim3/Vim3.dec
+  Silicon/Amlogic/MesonG12B/MesonG12B.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  DevicePathLib
+  FdtLib
+  HiiLib
+  IoLib
+  PrintLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib
+  Vim3McuLib
+
+[Guids]
+  gFdtTableGuid
+  gVim3PlatformFormSetGuid
+
+[Protocols]
+  gEfiDevicePathProtocolGuid
+  gEfiHiiConfigAccessProtocolGuid
+  gFdtClientProtocolGuid
+
+[Depex]
+  gEfiVariableArchProtocolGuid AND
+  gEfiVariableWriteArchProtocolGuid AND
+  gFdtClientProtocolGuid

@@ -1,0 +1,47 @@
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: [PATCH] usb: xhci-plat: mark streams broken on Amlogic G12 DWC3 hosts
+
+The DWC3-based xHCI on Amlogic G12-family SoCs (G12A/G12B/SM1) wedges
+under concurrent bulk-stream traffic: with a UAS mass-storage device
+issuing bursts of small sync writes across ~30 streams, transfer
+completions silently stop while control transfers continue, the
+subsequent Stop Endpoint command never completes, and the controller is
+declared dead (xhci_hc_died), taking down both buses.  Reproduced in
+~3 minutes with an ext4 root on a UAS SSD running dpkg; identical
+hardware running the same workload over usb-storage (BOT) on the same
+SuperSpeed link survives indefinitely.
+
+Set XHCI_BROKEN_STREAMS for hosts descending from
+"amlogic,meson-g12a-usb-ctrl", and add a generic
+"xhci-broken-streams-quirk" device property (readable from DT or ACPI
+_DSD, matching the existing quirk properties) so firmware can declare
+the same fact.  With streams marked broken, uas falls back to
+usb-storage automatically.
+
+Signed-off-by: Gus Bourg <gus@bourg.net>
+--- a/drivers/usb/host/xhci-plat.c	2026-09-02 17:30:00.000000000 -0700
++++ b/drivers/usb/host/xhci-plat.c	2026-09-02 17:30:00.000000000 -0700
+@@ -277,6 +277,22 @@
+ 		if (device_property_read_bool(tmpdev, "xhci-skip-phy-init-quirk"))
+ 			xhci->quirks |= XHCI_SKIP_PHY_INIT;
+ 
++		if (device_property_read_bool(tmpdev, "xhci-broken-streams-quirk"))
++			xhci->quirks |= XHCI_BROKEN_STREAMS;
++
++		/*
++		 * The DWC3 xHCI on Amlogic G12-family SoCs wedges its command
++		 * ring under concurrent bulk-stream traffic (UAS sync-write
++		 * bursts): stream completions stop, Stop Endpoint never
++		 * completes and the host is declared dead.  Streams cannot be
++		 * used safely on this controller; uas then binds storage via
++		 * usb-storage (BOT) instead.
++		 */
++		if (tmpdev->of_node &&
++		    of_device_is_compatible(tmpdev->of_node,
++					    "amlogic,meson-g12a-usb-ctrl"))
++			xhci->quirks |= XHCI_BROKEN_STREAMS;
++
+ 		device_property_read_u32(tmpdev, "imod-interval-ns",
+ 					 &xhci->imod_interval);
+ 		device_property_read_u16(tmpdev, "num-hc-interrupters",

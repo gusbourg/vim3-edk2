@@ -1,0 +1,28 @@
+## @file
+#  One-shot VIM3 vendor USB-upgrade reboot helper.
+#
+#  This application is build-only and is never embedded in the production FV.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3UsbBoot
+  FILE_GUID                      = f5df20b0-3f8a-4abc-8dd1-bb97d134e729
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3UsbBootEntryPoint
+
+[Sources]
+  Vim3UsbBoot.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  ArmSmcLib
+  BaseMemoryLib
+  UefiApplicationEntryPoint
+  UefiLib

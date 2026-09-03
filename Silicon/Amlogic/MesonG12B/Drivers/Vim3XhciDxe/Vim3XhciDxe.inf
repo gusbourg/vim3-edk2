@@ -1,0 +1,75 @@
+## @file
+#  Khadas VIM3 (Amlogic A311D / Synopsys DWC3) fork of MdeModulePkg XhciDxe.
+#
+#  Forked from edk2 b03a21a63e3bd001f52c527e5a57feddb53a690b so the reliability
+#  fixes this controller needs can be maintained as first-class source instead
+#  of an ever-growing patch file.  See README.md for the divergence list and for
+#  how to rebase onto a newer upstream XhciDxe.
+#
+#  The XhciDxe driver is responsible for managing the behavior of XHCI controller.
+#  It implements the interfaces of monitoring the status of all ports and transferring
+#  Control, Bulk, Interrupt and Isochronous requests to those attached usb LS/FS/HS/SS devices.
+#
+#  (C) Copyright 2023 Hewlett Packard Enterprise Development LP<BR>
+#  Copyright (c) 2011 - 2018, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = Vim3XhciDxe
+  MODULE_UNI_FILE                = Vim3XhciDxe.uni
+  FILE_GUID                      = 6E2B5A11-3C74-4E9D-9F41-2D8A70C6B913
+  MODULE_TYPE                    = UEFI_DRIVER
+  VERSION_STRING                 = 1.0
+
+  ENTRY_POINT                    = XhcDriverEntryPoint
+
+[Sources]
+  Xhci.c
+  XhciReg.c
+  XhciSched.c
+  UsbHcMem.c
+  UsbHcMem.h
+  ComponentName.c
+  ComponentName.h
+  Xhci.h
+  XhciReg.h
+  XhciSched.h
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+
+[LibraryClasses]
+  MemoryAllocationLib
+  BaseLib
+  UefiLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  BaseMemoryLib
+  DebugLib
+  ReportStatusCodeLib
+  TimerLib
+  PcdLib
+
+[Guids]
+  gEfiEventExitBootServicesGuid                 ## SOMETIMES_CONSUMES ## Event
+
+[Protocols]
+  gEfiPciIoProtocolGuid                         ## TO_START
+  gEfiUsb2HcProtocolGuid                        ## BY_START
+
+[Pcd]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdDelayXhciHCReset  ## CONSUMES
+
+# [Event]
+# EVENT_TYPE_PERIODIC_TIMER       ## CONSUMES
+#
+
+[UserExtensions.TianoCore."ExtraFiles"]
+  Vim3XhciDxeExtra.uni

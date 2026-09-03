@@ -1,0 +1,15 @@
+[submodule "third_party/amlogic-boot-fip"]
+	path = third_party/amlogic-boot-fip
+	url = https://github.com/LibreELEC/amlogic-boot-fip.git
+[submodule "third_party/edk2"]
+	path = third_party/edk2
+	url = https://github.com/tianocore/edk2.git
+[submodule "third_party/khadas-utils"]
+	path = third_party/khadas-utils
+	url = https://github.com/khadas/utils.git
+[submodule "third_party/pyamlboot"]
+	path = third_party/pyamlboot
+	url = https://github.com/superna9999/pyamlboot.git
+[submodule "third_party/edk2-platforms"]
+	path = third_party/edk2-platforms
+	url = https://github.com/tianocore/edk2-platforms.git

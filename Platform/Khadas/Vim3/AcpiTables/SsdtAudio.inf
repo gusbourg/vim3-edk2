@@ -1,0 +1,27 @@
+## @file
+#  Conditionally-installed HDMI-audio-playback SSDT for the Khadas VIM3
+#  (ACPI mode).
+#
+#  Built into its own FFS file (FILE_GUID below) so AcpiPlatformDxe does
+#  NOT auto-publish it with the static set; MesonDisplayDxe fetches the
+#  RAW section by this GUID and installs it under the same gate as the
+#  display SSDT (ACPI mode + successful VPU/HDMI bring-up).
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = Vim3SsdtAudio
+  # Must equal gVim3SsdtAudioFileGuid in Vim3.dec (the installer's lookup key).
+  FILE_GUID                      = 0287370b-48c7-4962-bd07-2bdfa56d5ebb
+  MODULE_TYPE                    = USER_DEFINED
+  VERSION_STRING                 = 1.0
+
+[Sources]
+  SsdtAudio.asl
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec

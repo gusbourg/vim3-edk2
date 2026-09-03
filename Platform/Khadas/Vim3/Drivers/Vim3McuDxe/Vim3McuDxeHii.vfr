@@ -1,0 +1,250 @@
+/** @file
+  Khadas VIM3 setup forms.
+
+  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+  SPDX-License-Identifier: BSD-2-Clause-Patent
+**/
+
+#include <Uefi/UefiMultiPhase.h>
+#include <Guid/HiiPlatformSetupFormset.h>
+#include <Vim3PlatformConfig.h>
+
+formset
+  guid      = VIM3_PLATFORM_FORMSET_GUID,
+  title     = STRING_TOKEN (STR_FORM_SET_TITLE),
+  help      = STRING_TOKEN (STR_FORM_SET_HELP),
+  classguid = EFI_HII_PLATFORM_SETUP_FORMSET_GUID,
+
+  efivarstore VIM3_FAN_POLICY_VARSTORE_DATA,
+    attribute = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+    name      = FanPolicy,
+    guid      = VIM3_PLATFORM_FORMSET_GUID;
+
+  efivarstore VIM3_HW_DESCRIPTION_VARSTORE_DATA,
+    attribute = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+    name      = HwDescription,
+    guid      = VIM3_PLATFORM_FORMSET_GUID;
+
+  efivarstore VIM3_USB3_PCIE_VARSTORE_DATA,
+    attribute = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+    name      = Usb3PcieMode,
+    guid      = VIM3_PLATFORM_FORMSET_GUID;
+
+  efivarstore VIM3_SPI_NOR_INSTALL_VARSTORE_DATA,
+    attribute = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+    name      = SpiNorInstall,
+    guid      = VIM3_PLATFORM_FORMSET_GUID;
+
+  efivarstore VIM3_MCU_SETTINGS_VARSTORE_DATA,
+    attribute = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+    name      = McuSettings,
+    guid      = VIM3_PLATFORM_FORMSET_GUID;
+
+  form formid = 0x1000,
+    title = STRING_TOKEN (STR_FORM_TITLE);
+
+    text
+      help = STRING_TOKEN (STR_MCU_VERSION_HELP),
+      text = STRING_TOKEN (STR_MCU_VERSION_PROMPT),
+        text = STRING_TOKEN (STR_MCU_VERSION_VALUE);
+
+    oneof varid = FanPolicy.Level,
+      prompt      = STRING_TOKEN (STR_FAN_PROMPT),
+      help        = STRING_TOKEN (STR_FAN_HELP),
+      flags       = NUMERIC_SIZE_1 | RESET_REQUIRED,
+      option text = STRING_TOKEN (STR_FAN_DISABLED), value = VIM3_FAN_DISABLED, flags = 0;
+      option text = STRING_TOKEN (STR_FAN_LEVEL_1),  value = VIM3_FAN_LEVEL_1,  flags = DEFAULT;
+      option text = STRING_TOKEN (STR_FAN_LEVEL_2),  value = VIM3_FAN_LEVEL_2,  flags = 0;
+      option text = STRING_TOKEN (STR_FAN_LEVEL_3),  value = VIM3_FAN_LEVEL_3,  flags = 0;
+    endoneof;
+
+    subtitle text = STRING_TOKEN (STR_REBOOT_NOTE);
+
+    oneof varid = HwDescription.Mode,
+      prompt      = STRING_TOKEN (STR_HWDESC_PROMPT),
+      help        = STRING_TOKEN (STR_HWDESC_HELP),
+      flags       = NUMERIC_SIZE_1 | RESET_REQUIRED,
+      option text = STRING_TOKEN (STR_HWDESC_DT),   value = VIM3_HW_DESCRIPTION_DEVICE_TREE, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_HWDESC_ACPI), value = VIM3_HW_DESCRIPTION_ACPI,        flags = 0;
+    endoneof;
+
+    subtitle text = STRING_TOKEN (STR_MUX_TITLE);
+
+    oneof varid = Usb3PcieMode.Mode,
+      questionid  = VIM3_QUESTION_USB_PCIE_MUX,
+      prompt      = STRING_TOKEN (STR_MUX_MODE_PROMPT),
+      help        = STRING_TOKEN (STR_MUX_MODE_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1 | RESET_REQUIRED,
+      option text = STRING_TOKEN (STR_MUX_USB3_OPT), value = VIM3_USB3_PCIE_USB3, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_MUX_M2_OPT),   value = VIM3_USB3_PCIE_M2,   flags = 0;
+    endoneof;
+
+    subtitle text = STRING_TOKEN (STR_MUX_REBOOT_NOTE);
+
+    subtitle text = STRING_TOKEN (STR_SPINOR_TITLE);
+    subtitle text = STRING_TOKEN (STR_SPINOR_WARN1);
+    subtitle text = STRING_TOKEN (STR_SPINOR_WARN2);
+
+    oneof varid = SpiNorInstall.Enable,
+      prompt      = STRING_TOKEN (STR_SPINOR_PROMPT),
+      help        = STRING_TOKEN (STR_SPINOR_HELP),
+      flags       = NUMERIC_SIZE_1 | RESET_REQUIRED,
+      option text = STRING_TOKEN (STR_SPINOR_DISABLED),
+        value = VIM3_SPI_NOR_INSTALL_DISABLED, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_SPINOR_ENABLED),
+        value = VIM3_SPI_NOR_INSTALL_ENABLED,  flags = 0;
+      option text = STRING_TOKEN (STR_SPINOR_NOW),
+        value = VIM3_SPI_NOR_INSTALL_NOW,      flags = 0;
+    endoneof;
+
+    subtitle text = STRING_TOKEN (STR_WAKE_TITLE);
+
+    oneof varid = McuSettings.DcinWake,
+      questionid  = VIM3_QUESTION_WAKE_DCIN,
+      prompt      = STRING_TOKEN (STR_WAKE_DCIN_PROMPT),
+      help        = STRING_TOKEN (STR_WAKE_DCIN_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_WAKE_DISABLED), value = VIM3_WAKE_DISABLED, flags = 0;
+      option text = STRING_TOKEN (STR_WAKE_ENABLED),  value = VIM3_WAKE_ENABLED,  flags = DEFAULT;
+    endoneof;
+
+    oneof varid = McuSettings.KeyWake,
+      questionid  = VIM3_QUESTION_WAKE_KEY,
+      prompt      = STRING_TOKEN (STR_WAKE_KEY_PROMPT),
+      help        = STRING_TOKEN (STR_WAKE_KEY_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_WAKE_DISABLED), value = VIM3_WAKE_DISABLED, flags = 0;
+      option text = STRING_TOKEN (STR_WAKE_ENABLED),  value = VIM3_WAKE_ENABLED,  flags = DEFAULT;
+    endoneof;
+
+    oneof varid = McuSettings.WolMode,
+      questionid  = VIM3_QUESTION_WAKE_WOL,
+      prompt      = STRING_TOKEN (STR_WAKE_WOL_PROMPT),
+      help        = STRING_TOKEN (STR_WAKE_WOL_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_WAKE_DISABLED),  value = VIM3_WAKE_DISABLED, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_WAKE_WOL_ON),    value = VIM3_WAKE_ENABLED,  flags = 0;
+      option text = STRING_TOKEN (STR_WAKE_WOL_RESET), value = VIM3_WAKE_RESET,    flags = 0;
+    endoneof;
+
+    oneof varid = McuSettings.RtcWake,
+      questionid  = VIM3_QUESTION_WAKE_RTC,
+      prompt      = STRING_TOKEN (STR_WAKE_RTC_PROMPT),
+      help        = STRING_TOKEN (STR_WAKE_RTC_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_WAKE_DISABLED), value = VIM3_WAKE_DISABLED, flags = 0;
+      option text = STRING_TOKEN (STR_WAKE_ENABLED),  value = VIM3_WAKE_ENABLED,  flags = DEFAULT;
+    endoneof;
+
+    oneof varid = McuSettings.IrWake,
+      questionid  = VIM3_QUESTION_WAKE_IR,
+      prompt      = STRING_TOKEN (STR_WAKE_IR_PROMPT),
+      help        = STRING_TOKEN (STR_WAKE_IR_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_WAKE_DISABLED), value = VIM3_WAKE_DISABLED, flags = 0;
+      option text = STRING_TOKEN (STR_WAKE_ENABLED),  value = VIM3_WAKE_ENABLED,  flags = DEFAULT;
+    endoneof;
+
+    oneof varid = McuSettings.ExpWake,
+      questionid  = VIM3_QUESTION_WAKE_EXP,
+      prompt      = STRING_TOKEN (STR_WAKE_EXP_PROMPT),
+      help        = STRING_TOKEN (STR_WAKE_EXP_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_WAKE_DISABLED),  value = VIM3_WAKE_DISABLED, flags = 0;
+      option text = STRING_TOKEN (STR_WAKE_ENABLED),   value = VIM3_WAKE_ENABLED,  flags = DEFAULT;
+      option text = STRING_TOKEN (STR_WAKE_EXP_RESET), value = VIM3_WAKE_RESET,    flags = 0;
+    endoneof;
+
+    oneof varid = McuSettings.KeyMode,
+      questionid  = VIM3_QUESTION_KEY_MODE,
+      prompt      = STRING_TOKEN (STR_KEY_MODE_PROMPT),
+      help        = STRING_TOKEN (STR_KEY_MODE_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_KEY_SHORT), value = VIM3_KEY_SHORT_PRESS, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_KEY_LONG),  value = VIM3_KEY_LONG_PRESS,  flags = 0;
+    endoneof;
+
+    subtitle text = STRING_TOKEN (STR_LED_TITLE);
+
+    oneof varid = McuSettings.LedOn,
+      questionid  = VIM3_QUESTION_LED_ON,
+      prompt      = STRING_TOKEN (STR_LED_ON_PROMPT),
+      help        = STRING_TOKEN (STR_LED_ON_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_LED_OFF),       value = VIM3_LED_OFF,       flags = 0;
+      option text = STRING_TOKEN (STR_LED_ON),        value = VIM3_LED_ON,        flags = DEFAULT;
+      option text = STRING_TOKEN (STR_LED_BREATH),    value = VIM3_LED_BREATH,    flags = 0;
+      option text = STRING_TOKEN (STR_LED_HEARTBEAT), value = VIM3_LED_HEARTBEAT, flags = 0;
+    endoneof;
+
+    oneof varid = McuSettings.LedOff,
+      questionid  = VIM3_QUESTION_LED_OFF,
+      prompt      = STRING_TOKEN (STR_LED_OFF_PROMPT),
+      help        = STRING_TOKEN (STR_LED_OFF_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_LED_OFF),       value = VIM3_LED_OFF,       flags = DEFAULT;
+      option text = STRING_TOKEN (STR_LED_ON),        value = VIM3_LED_ON,        flags = 0;
+      option text = STRING_TOKEN (STR_LED_BREATH),    value = VIM3_LED_BREATH,    flags = 0;
+      option text = STRING_TOKEN (STR_LED_HEARTBEAT), value = VIM3_LED_HEARTBEAT, flags = 0;
+    endoneof;
+
+    oneof varid = McuSettings.McuSleep,
+      questionid  = VIM3_QUESTION_MCU_SLEEP,
+      prompt      = STRING_TOKEN (STR_MCU_SLEEP_PROMPT),
+      help        = STRING_TOKEN (STR_MCU_SLEEP_HELP),
+      flags       = INTERACTIVE | NUMERIC_SIZE_1,
+      option text = STRING_TOKEN (STR_WAKE_DISABLED), value = VIM3_MCU_SLEEP_DISABLED, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_WAKE_ENABLED),  value = VIM3_MCU_SLEEP_ENABLED,  flags = 0;
+    endoneof;
+
+    subtitle text = STRING_TOKEN (STR_IR_TITLE);
+
+    numeric varid = McuSettings.IrCode1,
+      questionid = VIM3_QUESTION_IR_CODE1,
+      prompt     = STRING_TOKEN (STR_IR_CODE1_PROMPT),
+      help       = STRING_TOKEN (STR_IR_CODE_HELP),
+      flags      = INTERACTIVE | NUMERIC_SIZE_4 | DISPLAY_UINT_HEX,
+      minimum    = 0,
+      maximum    = 0xFFFFFFFF,
+      step       = 0,
+    endnumeric;
+
+    numeric varid = McuSettings.IrCode2,
+      questionid = VIM3_QUESTION_IR_CODE2,
+      prompt     = STRING_TOKEN (STR_IR_CODE2_PROMPT),
+      help       = STRING_TOKEN (STR_IR_CODE_HELP),
+      flags      = INTERACTIVE | NUMERIC_SIZE_4 | DISPLAY_UINT_HEX,
+      minimum    = 0,
+      maximum    = 0xFFFFFFFF,
+      step       = 0,
+    endnumeric;
+
+    subtitle text = STRING_TOKEN (STR_DATETIME_TITLE);
+
+    date
+      prompt  = STRING_TOKEN (STR_DATE_PROMPT),
+      help    = STRING_TOKEN (STR_DATE_HELP),
+      flags   = STORAGE_TIME,
+    enddate;
+
+    time
+      prompt  = STRING_TOKEN (STR_TIME_PROMPT),
+      help    = STRING_TOKEN (STR_TIME_HELP),
+      flags   = STORAGE_TIME,
+    endtime;
+
+    subtitle text = STRING_TOKEN (STR_HWMON_TITLE);
+
+    text
+      help = STRING_TOKEN (STR_SOC_TEMP_HELP),
+      text = STRING_TOKEN (STR_SOC_TEMP_PROMPT),
+        text = STRING_TOKEN (STR_SOC_TEMP_VALUE);
+
+    subtitle text = STRING_TOKEN (STR_DIAG_TITLE);
+
+    text
+      help = STRING_TOKEN (STR_SHUTDOWN_STATUS_HELP),
+      text = STRING_TOKEN (STR_SHUTDOWN_STATUS_PROMPT),
+        text = STRING_TOKEN (STR_SHUTDOWN_STATUS_VALUE);
+  endform;
+endformset;

@@ -1,0 +1,29 @@
+## @file
+#  Reboot the VIM3 into Amlogic MaskROM (USB recovery).
+#
+#  Embedded in the firmware volume and registered as a boot option by
+#  Vim3BootManagerLib.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = Vim3MaskRomBoot
+  FILE_GUID                      = 8f7c84d2-9b1e-4c6f-a1d3-6e07c00c15b4
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Vim3MaskRomBootEntryPoint
+
+[Sources]
+  Vim3MaskRomBoot.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  ArmSmcLib
+  BaseMemoryLib
+  UefiApplicationEntryPoint
+  UefiLib

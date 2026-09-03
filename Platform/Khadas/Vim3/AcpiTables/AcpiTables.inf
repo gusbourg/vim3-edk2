@@ -1,0 +1,24 @@
+## @file
+#  ACPI tables for the Khadas VIM3.
+#
+#  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = Vim3AcpiTables
+  FILE_GUID                      = 0f8a8d64-3130-47ea-9fa2-4e29262e56a8
+  MODULE_TYPE                    = USER_DEFINED
+  VERSION_STRING                 = 1.0
+
+[Sources]
+  Dsdt.asl
+  Fadt.aslc
+  Gtdt.aslc
+  Madt.aslc
+  Pptt.aslc
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec

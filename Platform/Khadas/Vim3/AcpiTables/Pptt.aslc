@@ -1,0 +1,183 @@
+/** @file
+  Processor and cache topology for the Khadas VIM3.
+
+  Cache geometry was measured on every online CPU from CLIDR_EL1 and
+  CCSIDR_EL1 under stock Debian 6.12.94.  The A311D contains two Cortex-A53
+  cores with a shared 256 KiB L2 and four Cortex-A73 cores with a shared
+  1 MiB L2.  Every core has private L1 instruction and data caches.
+
+  Copyright (c) 2026, Gus Bourg. All rights reserved.<BR>
+  SPDX-License-Identifier: BSD-2-Clause-Patent
+**/
+
+#include "AcpiTables.h"
+
+#define FIELD_OFFSET(Type, Field)  __builtin_offsetof (Type, Field)
+
+#pragma pack (1)
+
+typedef struct {
+  EFI_ACPI_6_6_PPTT_STRUCTURE_PROCESSOR    Processor;
+  UINT32                                   PrivateResources[1];
+} VIM3_PPTT_CLUSTER;
+
+typedef struct {
+  EFI_ACPI_6_6_PPTT_STRUCTURE_PROCESSOR    Processor;
+  UINT32                                   PrivateResources[2];
+} VIM3_PPTT_CORE;
+
+typedef struct {
+  EFI_ACPI_6_6_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_HEADER    Header;
+  EFI_ACPI_6_6_PPTT_STRUCTURE_PROCESSOR                      Package;
+  VIM3_PPTT_CLUSTER                                           Cluster0;
+  VIM3_PPTT_CLUSTER                                           Cluster1;
+  VIM3_PPTT_CORE                                              Cores[6];
+  EFI_ACPI_6_6_PPTT_STRUCTURE_CACHE                          Cluster0L2;
+  EFI_ACPI_6_6_PPTT_STRUCTURE_CACHE                          Cluster1L2;
+  EFI_ACPI_6_6_PPTT_STRUCTURE_CACHE                          CoreL1[12];
+} VIM3_PPTT;
+
+#pragma pack ()
+
+#define VIM3_PPTT_PROCESSOR_FLAGS(Physical, IdValid, Leaf, Identical) \
+  { Physical, IdValid, 0, Leaf, Identical, 0 }
+
+#define VIM3_PPTT_PROCESSOR_NODE(Length, Flags, Parent, Id, Resources) { \
+  EFI_ACPI_6_6_PPTT_TYPE_PROCESSOR,                                   \
+  Length,                                                              \
+  { 0, 0 },                                                            \
+  Flags,                                                               \
+  Parent,                                                              \
+  Id,                                                                  \
+  Resources                                                            \
+}
+
+#define VIM3_PPTT_CACHE(                                                \
+          Size, Sets, Ways, Allocation, Type, Policy, Line, Id          \
+          ) {                                                           \
+  EFI_ACPI_6_6_PPTT_TYPE_CACHE,                                         \
+  sizeof (EFI_ACPI_6_6_PPTT_STRUCTURE_CACHE),                           \
+  { 0, 0 },                                                             \
+  { 1, 1, 1, 1, 1, 1, 1, 1, 0 },                                      \
+  0,                                                                    \
+  Size,                                                                 \
+  Sets,                                                                 \
+  Ways,                                                                 \
+  { Allocation, Type, Policy, 0 },                                      \
+  Line,                                                                 \
+  Id                                                                    \
+}
+
+#define VIM3_L1I_CACHE(Size, Sets, Ways, Id) \
+  VIM3_PPTT_CACHE (                        \
+    Size,                                  \
+    Sets,                                  \
+    Ways,                                  \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_ALLOCATION_READ, \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_CACHE_TYPE_INSTRUCTION, \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_WRITE_POLICY_WRITE_BACK, \
+    64,                                    \
+    Id                                     \
+    )
+
+#define VIM3_L1D_CACHE(Size, Sets, Ways, Id) \
+  VIM3_PPTT_CACHE (                        \
+    Size,                                  \
+    Sets,                                  \
+    Ways,                                  \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_ALLOCATION_READ_WRITE, \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_CACHE_TYPE_DATA, \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_WRITE_POLICY_WRITE_BACK, \
+    64,                                    \
+    Id                                     \
+    )
+
+#define VIM3_L2_CACHE(Size, Sets, Id) \
+  VIM3_PPTT_CACHE (                  \
+    Size,                            \
+    Sets,                            \
+    16,                              \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_ALLOCATION_READ_WRITE, \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_CACHE_TYPE_UNIFIED, \
+    EFI_ACPI_6_6_CACHE_ATTRIBUTES_WRITE_POLICY_WRITE_BACK, \
+    64,                              \
+    Id                               \
+    )
+
+#define VIM3_CORE_L1_OFFSET(Index) \
+  (FIELD_OFFSET (VIM3_PPTT, CoreL1) + \
+   ((Index) * sizeof (EFI_ACPI_6_6_PPTT_STRUCTURE_CACHE)))
+
+#define VIM3_CORE_NODE(Cluster, Id, CacheIndex) {                        \
+  VIM3_PPTT_PROCESSOR_NODE (                                            \
+    sizeof (VIM3_PPTT_CORE),                                            \
+    VIM3_PPTT_PROCESSOR_FLAGS (0, 1, 1, 0),                             \
+    FIELD_OFFSET (VIM3_PPTT, Cluster),                                  \
+    Id,                                                                 \
+    2                                                                   \
+    ),                                                                  \
+  { VIM3_CORE_L1_OFFSET (CacheIndex), VIM3_CORE_L1_OFFSET ((CacheIndex) + 1) } \
+}
+
+STATIC VIM3_PPTT Pptt = {
+  {
+    VIM3_ACPI_HEADER (
+      EFI_ACPI_6_6_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_STRUCTURE_SIGNATURE,
+      VIM3_PPTT,
+      EFI_ACPI_6_6_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_REVISION
+      )
+  },
+  VIM3_PPTT_PROCESSOR_NODE (
+    sizeof (EFI_ACPI_6_6_PPTT_STRUCTURE_PROCESSOR),
+    VIM3_PPTT_PROCESSOR_FLAGS (1, 0, 0, 0),
+    0,
+    0,
+    0
+    ),
+  {
+    VIM3_PPTT_PROCESSOR_NODE (
+      sizeof (VIM3_PPTT_CLUSTER),
+      VIM3_PPTT_PROCESSOR_FLAGS (0, 0, 0, 1),
+      FIELD_OFFSET (VIM3_PPTT, Package),
+      0,
+      1
+      ),
+    { FIELD_OFFSET (VIM3_PPTT, Cluster0L2) }
+  },
+  {
+    VIM3_PPTT_PROCESSOR_NODE (
+      sizeof (VIM3_PPTT_CLUSTER),
+      VIM3_PPTT_PROCESSOR_FLAGS (0, 0, 0, 1),
+      FIELD_OFFSET (VIM3_PPTT, Package),
+      0,
+      1
+      ),
+    { FIELD_OFFSET (VIM3_PPTT, Cluster1L2) }
+  },
+  {
+    VIM3_CORE_NODE (Cluster0, 0, 0),
+    VIM3_CORE_NODE (Cluster0, 1, 2),
+    VIM3_CORE_NODE (Cluster1, 2, 4),
+    VIM3_CORE_NODE (Cluster1, 3, 6),
+    VIM3_CORE_NODE (Cluster1, 4, 8),
+    VIM3_CORE_NODE (Cluster1, 5, 10)
+  },
+  VIM3_L2_CACHE (SIZE_256KB, 256, 1),
+  VIM3_L2_CACHE (SIZE_1MB, 1024, 2),
+  {
+    VIM3_L1I_CACHE (SIZE_32KB, 256, 2, 3),
+    VIM3_L1D_CACHE (SIZE_32KB, 128, 4, 4),
+    VIM3_L1I_CACHE (SIZE_32KB, 256, 2, 5),
+    VIM3_L1D_CACHE (SIZE_32KB, 128, 4, 6),
+    VIM3_L1I_CACHE (SIZE_64KB, 256, 4, 7),
+    VIM3_L1D_CACHE (SIZE_32KB, 64, 8, 8),
+    VIM3_L1I_CACHE (SIZE_64KB, 256, 4, 9),
+    VIM3_L1D_CACHE (SIZE_32KB, 64, 8, 10),
+    VIM3_L1I_CACHE (SIZE_64KB, 256, 4, 11),
+    VIM3_L1D_CACHE (SIZE_32KB, 64, 8, 12),
+    VIM3_L1I_CACHE (SIZE_64KB, 256, 4, 13),
+    VIM3_L1D_CACHE (SIZE_32KB, 64, 8, 14)
+  }
+};
+
+VOID *CONST ReferenceAcpiTable = &Pptt;
