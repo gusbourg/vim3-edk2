@@ -138,18 +138,17 @@ Capsule update is supported via `Vim3FmpDxe`.
 
 ## Recovery
 
-The VIM3 can always be returned to USB MaskROM mode. With the board **powered
-off** and a data-capable USB-C cable to the host, hold the **Function** button,
-apply power, and keep holding for about three seconds. Confirm on the host:
+The VIM3 can always be returned to USB MaskROM mode. With a data-capable USB-C
+cable to the host, **press the Function button three times in quick
+succession** — three fast presses within about two seconds. Do not hold it.
+Confirm on the host:
 
 ```sh
 lsusb -d 1b8e:c003        # Amlogic GX-CHIP
 ```
 
-If that device does not appear, the board is not in MaskROM. A charge-only
-USB-C cable is the usual reason. (Triple-pressing Function within two seconds
-on a running board also works, but the hold-through-power-on sequence above is
-the one these instructions were tested with.)
+If that device does not appear, the board is not in MaskROM — try the three
+presses again, faster. A charge-only USB-C cable is the other common cause.
 
 A candidate can then be tested from RAM with no persistent write at all:
 
