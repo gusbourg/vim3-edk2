@@ -6,8 +6,9 @@ Written for the Khadas VIM3 EDK2 port.
 
 Signed-off-by: Gus Bourg <gus@bourg.net>
 
---- meson-gx-mmc-v7.0.11.c	2026-09-02 17:30:00.000000000 -0700
-+++ work.c	2026-09-02 17:30:00.000000000 -0700
+diff --git a/drivers/mmc/host/meson-gx-mmc.c b/drivers/mmc/host/meson-gx-mmc.c
+--- a/drivers/mmc/host/meson-gx-mmc.c
++++ b/drivers/mmc/host/meson-gx-mmc.c
 @@ -27,6 +27,8 @@
  #include <linux/interrupt.h>
  #include <linux/bitfield.h>

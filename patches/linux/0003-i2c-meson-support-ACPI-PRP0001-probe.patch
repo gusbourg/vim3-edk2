@@ -6,8 +6,9 @@ Written for the Khadas VIM3 EDK2 port.
 
 Signed-off-by: Gus Bourg <gus@bourg.net>
 
---- /tmp/claude-1001/-home-dev/c534c4ad-897d-49eb-afb4-cf70fdf0ea8c/scratchpad/i2c-meson-v7.0.12.c	2026-09-02 17:30:00.000000000 -0700
-+++ /tmp/claude-1001/-home-dev/c534c4ad-897d-49eb-afb4-cf70fdf0ea8c/scratchpad/i2c-work.c	2026-09-02 17:30:00.000000000 -0700
+diff --git a/drivers/i2c/busses/i2c-meson.c b/drivers/i2c/busses/i2c-meson.c
+--- a/drivers/i2c/busses/i2c-meson.c
++++ b/drivers/i2c/busses/i2c-meson.c
 @@ -5,7 +5,9 @@
   * Copyright (C) 2014 Beniamino Galvani <b.galvani@gmail.com>
   */

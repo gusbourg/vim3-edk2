@@ -9,8 +9,8 @@ this patch inherits the licence of the files it modifies.
 
 Index: ffmpeg-7.1.5/libavcodec/v4l2_buffers.c
 ===================================================================
---- ffmpeg-7.1.5.orig/libavcodec/v4l2_buffers.c
-+++ ffmpeg-7.1.5/libavcodec/v4l2_buffers.c
+--- a/libavcodec/v4l2_buffers.c
++++ b/libavcodec/v4l2_buffers.c
 @@ -920,6 +920,51 @@ int ff_v4l2_buffer_buf_to_avframe(AVFram
      frame->colorspace = v4l2_get_color_space(avbuf);
      frame->color_range = v4l2_get_color_range(avbuf);
