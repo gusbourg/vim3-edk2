@@ -252,6 +252,14 @@ kernel. Differences from 7.0.x worth knowing:
   MAC probes as DWMAC100 and MDIO registration fails with `-EIO`.
 * The video-decode work is substantially extended — 34 meson-vdec patches.
 
+**These are also available as a git branch, if you would rather cherry-pick
+than apply patch files:** `vim3-acpi-v7.3-rc1` on
+[github.com/gusbourg/linux](https://github.com/gusbourg/linux/tree/vim3-acpi-v7.3-rc1)
+— a fork of `torvalds/linux` with these 63 patches as 63 commits on top of
+the `v7.3-rc1` tag. The branch and the patch files are generated from the
+same source and produce a byte-identical tree (verified by comparing tree
+hashes), so the two are interchangeable.
+
 Notable decoder fixes in this series. Verification status is stated per patch
 rather than claimed for the set:
 
