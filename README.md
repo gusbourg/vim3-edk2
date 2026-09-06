@@ -252,7 +252,8 @@ kernel. Differences from 7.0.x worth knowing:
   MAC probes as DWMAC100 and MDIO registration fails with `-EIO`.
 * The video-decode work is substantially extended — 31 meson-vdec patches.
 
-Notable decoder fixes in this series, all reproduced and verified on hardware:
+Notable decoder fixes in this series. Verification status is stated per patch
+rather than claimed for the set:
 
 | Patch | What it fixes |
 |---|---|
@@ -262,6 +263,23 @@ Notable decoder fixes in this series, all reproduced and verified on hardware:
 | `0058` | Restart stall recovery the way a cold start does. Recovery wrote `ACTION_DONE` into the status register before starting the firmware; that value is a reply to a raised interrupt and is only collected alongside an MCPU kick, so after a reset the firmware never read it and sat. |
 | `0059` | Do not demand that *every* CAPTURE buffer be queued before streaming. `vb2_core_streamon()` defers the driver's `start_streaming()` until `queued_count >= min_queued_buffers`; a zero-copy renderer holds frames across a seek, so the callback never fired, `resume()` never ran, and the picture froze while the player's clock ran on. Also writes the ANC2AXI canvas table densely by index — it is index-addressed, and the all-queued rule was hiding that. |
 | `0060` | Recycle buffers by firmware index, not vb2 index. The firmware addresses CAPTURE buffers by the canvas slot from `amvdec_set_canvases()`, but the recycle thread passed `vb->index` with no conversion and the driver had no reverse map. The two spaces match only while buffers are queued in index order — true on a first play, false after a seek. Freeing the wrong slot let the firmware overwrite a buffer the display was still scanning out. **This bug is present in mainline `v7.3-rc1`** and affects MPEG-1/2 and H.264. |
+
+| `0055` | Treat a firmware idle with queued input as a stall, instead of assuming starvation. Verified: the detector fires on the `ACTION_DONE` wedge it was written for. Its recovery path was then found broken — that is `0058`; the two belong together. |
+| `0056` | Five fixes on the path a decoder takes after losing its place: ESPARSER credit starving a resync, a discarded `setup_buffers()` error, a stall oracle that could not see a wedge, and CMA contention for the workspace and the FBC pool. Verified on VIM3 per its own commit message. |
+| `0057` | Resume on CAPTURE STREAMON without also demanding `changed_format`, which only gets set by a fresh REQBUFS — the stateful decoder interface does not require that. **Not independently verified on hardware**; it is live in the tree that passes the seek tests, so it is verified in aggregate but never isolated. |
+
+**Known-open, in this series:**
+
+`0041` adds a shared pool for FBC chunks, and under real CMA exhaustion its
+pressure path (`fbc_chunk_get_pressure_locked()`) splices *parked* generations
+back onto the free list and hands them out — a generation that may still be on
+screen. With `debug_pagealloc=on slub_debug=FZP` this reproduces as page
+metadata corruption (`BUG` in `set_buddy_order` / `is_free_buddy_page` from an
+unrelated allocator-heavy process), i.e. a double free or free-while-referenced
+of a CMA page. It needs *artificial* exhaustion to trigger — ten rapid seeks, or
+seeks plus a multi-gigabyte write — and normal playback does not approach it,
+but it is real and unfixed. Candidate fixes: stop recycling parked chunks under
+pressure, or refcount them so an on-screen generation is never handed out.
 
 ### `patches/upstream/` — not ACPI-specific
 
