@@ -186,7 +186,8 @@ the pinned image is not redistributed here.
 ### `patches/linux/` — required for ACPI mode
 
 42 patches against 7.0.x, with 37 of them rebased for 6.18.x under
-`patches/linux/6.18/`. Broadly:
+`patches/linux/6.18/`, and the current 60-patch series against **v7.3-rc1**
+under `patches/linux/7.3/` (see below). Broadly:
 
 **ACPI enablement (PRP0001 probe support).** Each PRP0001 device the firmware
 publishes needs its driver taught to probe without DeviceTree. Where a DT
@@ -236,6 +237,31 @@ states the facts as `_DSD` scalars.
 **Out-of-tree modules** (`patches/linux/*/`): `g12b-cpufreq` (CPU DVFS under
 ACPI), `g12b-pcie-acpi` (the conditional PCIe device), `vim3-hdmi-snd` (the
 ACPI machine driver replacing the OF-only `axg-card`).
+
+
+### `patches/linux/7.3/` — the current series, against v7.3-rc1
+
+60 patches, all verified to apply to a pristine `v7.3-rc1` tree. This is the
+series the board is actually running; the 7.0.x set above is kept for that
+kernel. Differences from 7.0.x worth knowing:
+
+* `0005` (arm64/efi SW-PAN) is **dropped** — upstream as `e98a9d014637`.
+* `0006` (stmmac Phytium ACPI glue, not our work) is **dropped** and replaced by
+  `0045`–`0047`: a PRP0001 match, a fwnode-based `compatible` match so
+  `core_type` is set under ACPI, and a fixed-rate CSR clock. Without these the
+  MAC probes as DWMAC100 and MDIO registration fails with `-EIO`.
+* The video-decode work is substantially extended — 31 meson-vdec patches.
+
+Notable decoder fixes in this series, all reproduced and verified on hardware:
+
+| Patch | What it fixes |
+|---|---|
+| `0048`–`0049` | Bound the slice-segment index and validate the reference-list modification. Both are bitstream-controlled indices that wrote past fixed arrays. |
+| `0051`, `0054` | Resynchronise at the next IRAP after a stall and after a flush, instead of decoding against references that no longer exist. Stops seconds of visible corruption from one bad frame. |
+| `0053` | Never program an out-of-range FBC chunk — the hardware would otherwise DMA to whatever that address happened to be. |
+| `0058` | Restart stall recovery the way a cold start does. Recovery wrote `ACTION_DONE` into the status register before starting the firmware; that value is a reply to a raised interrupt and is only collected alongside an MCPU kick, so after a reset the firmware never read it and sat. |
+| `0059` | Do not demand that *every* CAPTURE buffer be queued before streaming. `vb2_core_streamon()` defers the driver's `start_streaming()` until `queued_count >= min_queued_buffers`; a zero-copy renderer holds frames across a seek, so the callback never fired, `resume()` never ran, and the picture froze while the player's clock ran on. Also writes the ANC2AXI canvas table densely by index — it is index-addressed, and the all-queued rule was hiding that. |
+| `0060` | Recycle buffers by firmware index, not vb2 index. The firmware addresses CAPTURE buffers by the canvas slot from `amvdec_set_canvases()`, but the recycle thread passed `vb->index` with no conversion and the driver had no reverse map. The two spaces match only while buffers are queued in index order — true on a first play, false after a seek. Freeing the wrong slot let the firmware overwrite a buffer the display was still scanning out. **This bug is present in mainline `v7.3-rc1`** and affects MPEG-1/2 and H.264. |
 
 ### `patches/upstream/` — not ACPI-specific
 

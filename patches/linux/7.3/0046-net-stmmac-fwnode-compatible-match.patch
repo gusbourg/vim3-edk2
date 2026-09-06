@@ -1,0 +1,129 @@
+From: Gus Bourg <gus@bourg.net>
+Subject: net: stmmac: match the compatible through the fwnode, not the of_node
+
+stmmac_probe_config_dt() decides which DWMAC core it is talking to by
+testing the "compatible" strings with of_device_is_compatible(). That walks
+dev->of_node, which is NULL for a device described by ACPI PRP0001, so none
+of those tests can ever match and plat->core_type is left at its allocation
+default - DWMAC_CORE_MAC100, the first enum value.
+
+The failure is silent rather than loud. stmmac_get_version() returns early
+for MAC100 without reading the ID register, so nothing reports a mismatch;
+the driver simply proceeds as a 20-year-old MAC100 on a DWMAC 3.70a:
+
+  meson8b-dwmac PRP0001:03:        DWMAC100
+  meson8b-dwmac PRP0001:03: No HW DMA feature register supported
+  meson8b-dwmac PRP0001:03: device MAC address 00:00:00:00:04:00
+  meson8b-dwmac PRP0001:03: error -EIO: Cannot register the MDIO bus
+  meson8b-dwmac PRP0001:03: probe with driver meson8b-dwmac failed with error -5
+
+The MAC is healthy throughout - on a VIM3 GMAC_VERSION reads 0x00001137 and
+the address registers hold the address the firmware programmed. Only the
+core selection is wrong, and everything downstream follows from it.
+
+device_is_compatible() answers from the fwnode, so it resolves DeviceTree
+and ACPI alike, and is a straight substitution for the DeviceTree path.
+of_device_compatible_match() has no fwnode counterpart, so match the
+NULL-terminated list with a small local helper.
+
+The remaining of_device_is_compatible() call, in stmmac_of_get_mdio(),
+walks DeviceTree child nodes and is deliberately left alone.
+
+Signed-off-by: Gus Bourg <gus@bourg.net>
+---
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c
+index 6128ed1bd521..621c6ab055a7 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_platform.c
+@@ -16,6 +16,7 @@
+ #include <linux/of.h>
+ #include <linux/of_net.h>
+ #include <linux/of_mdio.h>
++#include <linux/property.h>
+ 
+ #include "stmmac.h"
+ #include "stmmac_platform.h"
+@@ -402,6 +403,22 @@ static const char * const stmmac_gmac4_compats[] = {
+ 	NULL
+ };
+ 
++/* Match the device's "compatible" against a NULL-terminated list.
++ *
++ * Unlike of_device_compatible_match() this resolves both DeviceTree and ACPI
++ * devices: an ACPI device described with PRP0001 carries its "compatible"
++ * strings in _DSD, and has no dev->of_node for the of_*() helpers to walk.
++ */
++static bool stmmac_device_compatible_match(struct device *dev,
++					   const char *const *compats)
++{
++	while (*compats)
++		if (device_is_compatible(dev, *compats++))
++			return true;
++
++	return false;
++}
++
+ /**
+  * stmmac_probe_config_dt - parse device-tree driver parameters
+  * @pdev: platform_device structure
+@@ -495,11 +512,11 @@ stmmac_probe_config_dt(struct platform_device *pdev, u8 *mac)
+ 	 * are provided. All other properties should be added
+ 	 * once needed on other platforms.
+ 	 */
+-	if (of_device_is_compatible(np, "st,spear600-gmac") ||
+-		of_device_is_compatible(np, "snps,dwmac-3.50a") ||
+-		of_device_is_compatible(np, "snps,dwmac-3.70a") ||
+-		of_device_is_compatible(np, "snps,dwmac-3.72a") ||
+-		of_device_is_compatible(np, "snps,dwmac")) {
++	if (device_is_compatible(&pdev->dev, "st,spear600-gmac") ||
++		device_is_compatible(&pdev->dev, "snps,dwmac-3.50a") ||
++		device_is_compatible(&pdev->dev, "snps,dwmac-3.70a") ||
++		device_is_compatible(&pdev->dev, "snps,dwmac-3.72a") ||
++		device_is_compatible(&pdev->dev, "snps,dwmac")) {
+ 		/* Note that the max-frame-size parameter as defined in the
+ 		 * ePAPR v1.1 spec is defined as max-frame-size, it's
+ 		 * actually used as the IEEE definition of MAC Client
+@@ -520,7 +537,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, u8 *mac)
+ 		plat->pmt = true;
+ 	}
+ 
+-	if (of_device_is_compatible(np, "snps,dwmac-3.40a")) {
++	if (device_is_compatible(&pdev->dev, "snps,dwmac-3.40a")) {
+ 		plat->core_type = DWMAC_CORE_GMAC;
+ 		plat->enh_desc = true;
+ 		plat->tx_coe = true;
+@@ -528,21 +545,21 @@ stmmac_probe_config_dt(struct platform_device *pdev, u8 *mac)
+ 		plat->pmt = true;
+ 	}
+ 
+-	if (of_device_compatible_match(np, stmmac_gmac4_compats)) {
++	if (stmmac_device_compatible_match(&pdev->dev, stmmac_gmac4_compats)) {
+ 		plat->core_type = DWMAC_CORE_GMAC4;
+ 		plat->pmt = true;
+ 		if (of_property_read_bool(np, "snps,tso"))
+ 			plat->flags |= STMMAC_FLAG_TSO_EN;
+ 	}
+ 
+-	if (of_device_is_compatible(np, "snps,dwmac-3.610") ||
+-		of_device_is_compatible(np, "snps,dwmac-3.710")) {
++	if (device_is_compatible(&pdev->dev, "snps,dwmac-3.610") ||
++		device_is_compatible(&pdev->dev, "snps,dwmac-3.710")) {
+ 		plat->enh_desc = true;
+ 		plat->bugged_jumbo = true;
+ 		plat->force_sf_dma_mode = true;
+ 	}
+ 
+-	if (of_device_is_compatible(np, "snps,dwxgmac")) {
++	if (device_is_compatible(&pdev->dev, "snps,dwxgmac")) {
+ 		plat->core_type = DWMAC_CORE_XGMAC;
+ 		plat->pmt = true;
+ 		if (of_property_read_bool(np, "snps,tso"))
+@@ -582,7 +599,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, u8 *mac)
+ 	}
+ 
+ 	/* clock setup */
+-	if (!of_device_is_compatible(np, "snps,dwc-qos-ethernet-4.10")) {
++	if (!device_is_compatible(&pdev->dev, "snps,dwc-qos-ethernet-4.10")) {
+ 		plat->stmmac_clk = devm_clk_get(&pdev->dev,
+ 						STMMAC_RESOURCE_NAME);
+ 		if (IS_ERR(plat->stmmac_clk)) {

@@ -1,0 +1,94 @@
+From: Gus Bourg <gus@bourg.net>
+Subject: net: stmmac: dwmac-meson8b: describe the CSR clock under ACPI
+
+stmmac_probe_config_dt() looks up the "stmmaceth" clock to learn the CSR
+clock rate, which stmmac_clk_csr_set() turns into the GMII_Address CR field
+- the MDC divider. ACPI has no clock controller driver to resolve that
+lookup, so the clock comes back NULL:
+
+  meson8b-dwmac PRP0001:03: Cannot get CSR clock
+
+clk_get_rate(NULL) then reports 0. stmmac_clk_csr_set() scans its rate table
+for the first entry the rate exceeds; 0 exceeds nothing, so the walk reaches
+the terminating { 0, ~0 } entry and returns ~0, which is shifted into place
+and truncated:
+
+  meson8b-dwmac PRP0001:03: clk_csr value out of range (0xfffffffc exceeds mask 0x0000003c), truncating
+
+CR is left at 0xf and MDC runs far outside the 2.5MHz IEEE 802.3 ceiling,
+so no PHY answers and the bus fails to register.
+
+clk81 feeds the MAC on Meson8b through G12B, and the firmware has already
+configured and started it before handing over - BL2 reports "CLK81: 166.6M"
+on this SoC. Register a fixed-rate clock describing that so the divider is
+computed from a real rate, and allow "amlogic,csr-frequency" to override it
+where firmware differs. This is only installed when the device came from
+ACPI; DeviceTree keeps its real clock.
+
+Signed-off-by: Gus Bourg <gus@bourg.net>
+---
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac-meson8b.c b/drivers/net/ethernet/stmicro/stmmac/dwmac-meson8b.c
+index 942b4058158e..c35e42580487 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac-meson8b.c
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-meson8b.c
+@@ -8,6 +8,7 @@
+ #include <linux/bitfield.h>
+ #include <linux/clk.h>
+ #include <linux/clk-provider.h>
++#include <linux/clkdev.h>
+ #include <linux/device.h>
+ #include <linux/ethtool.h>
+ #include <linux/io.h>
+@@ -407,6 +408,40 @@ static int meson8b_init_prg_eth(struct meson8b_dwmac *dwmac)
+ 	return 0;
+ }
+ 
++/*
++ * Provide the CSR clock when the device was described by ACPI.
++ *
++ * stmmac_probe_config_dt() looks up the "stmmaceth" clock to learn the CSR
++ * clock rate, which stmmac_clk_csr_set() turns into the GMII_Address CR
++ * field - the MDC divider.  Under ACPI there is no clock controller driver
++ * to resolve it, so the lookup fails, clk_get_rate() reports 0, the rate
++ * table walk falls off its terminating entry and CR is programmed all-ones.
++ * MDC then runs far out of spec and MDIO bus registration fails with -EIO.
++ *
++ * The MAC is fed by clk81, which the firmware has already configured and
++ * left running (BL2 reports "CLK81: 166.6M" on G12B).  Describe that with a
++ * fixed-rate clock so the divider is computed from a real rate.
++ * "amlogic,csr-frequency" overrides it where firmware differs.
++ */
++static int meson8b_dwmac_register_acpi_csr_clk(struct device *dev)
++{
++	struct clk_hw *hw;
++	char name[32];
++	u32 rate = 166666666;
++
++	if (dev_of_node(dev))
++		return 0;
++
++	device_property_read_u32(dev, "amlogic,csr-frequency", &rate);
++
++	snprintf(name, sizeof(name), "%s#stmmaceth", dev_name(dev));
++	hw = devm_clk_hw_register_fixed_rate(dev, name, NULL, 0, rate);
++	if (IS_ERR(hw))
++		return PTR_ERR(hw);
++
++	return devm_clk_hw_register_clkdev(dev, hw, "stmmaceth", dev_name(dev));
++}
++
+ static int meson8b_dwmac_probe(struct platform_device *pdev)
+ {
+ 	struct plat_stmmacenet_data *plat_dat;
+@@ -418,6 +453,11 @@ static int meson8b_dwmac_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
++	/* must precede the config parse, which is what looks the clock up */
++	ret = meson8b_dwmac_register_acpi_csr_clk(&pdev->dev);
++	if (ret)
++		return ret;
++
+ 	plat_dat = devm_stmmac_probe_config_dt(pdev, stmmac_res.mac);
+ 	if (IS_ERR(plat_dat))
+ 		return PTR_ERR(plat_dat);

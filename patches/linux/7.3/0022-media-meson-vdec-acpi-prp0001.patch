@@ -1,0 +1,419 @@
+From 933ccad115fddffaa26d95bb5935cb4aaea7ba71 Mon Sep 17 00:00:00 2001
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: [PATCH] media: meson: vdec: support ACPI PRP0001 probe
+
+device_get_match_data (fixes an of_match_node NULL deref under
+PRP0001); resources and IRQs by index under ACPI (_CRS entries are
+unnamed - the index order is the ABI, kept in the firmware SSDT): [0]
+DOS, [1] esparser, [2] EE reset pulse bank 1, [3] AO sysctrl window,
+[4] HHI window.  The AO window becomes a private regmap replacing the
+DT syscon phandle; the esparser reset becomes a direct RESET_PARSER
+pulse write (bank 1 bit 8).  Clocks come from a local island over the
+HHI window (new vdec_acpi.c): dos/dos_parser gates plus the three
+vdec composites, with only the fixed fclk_div parents modelled - a
+rate request can never escape to a PLL under ACPI (DT's CCF has been
+observed parking vdec_1 on HIFI_PLL).  DT paths byte-identical.
+---
+diff --git a/drivers/staging/media/meson/vdec/Makefile b/drivers/staging/media/meson/vdec/Makefile
+index 6e726af84ac9..39c75021beb4 100644
+--- a/drivers/staging/media/meson/vdec/Makefile
++++ b/drivers/staging/media/meson/vdec/Makefile
+@@ -1,7 +1,7 @@
+ # SPDX-License-Identifier: GPL-2.0
+ # Makefile for Amlogic meson video decoder driver
+ 
+-meson-vdec-objs = esparser.o vdec.o vdec_helpers.o vdec_platform.o
++meson-vdec-objs = esparser.o vdec.o vdec_helpers.o vdec_platform.o vdec_acpi.o
+ meson-vdec-objs += vdec_1.o vdec_hevc.o
+ meson-vdec-objs += codec_mpeg12.o codec_h264.o codec_hevc_common.o codec_vp9.o
+ 
+diff --git a/drivers/staging/media/meson/vdec/esparser.c b/drivers/staging/media/meson/vdec/esparser.c
+index 1564a73e2d25..f983ef675aba 100644
+--- a/drivers/staging/media/meson/vdec/esparser.c
++++ b/drivers/staging/media/meson/vdec/esparser.c
+@@ -399,7 +399,15 @@ int esparser_power_up(struct amvdec_session *sess)
+ 	struct amvdec_core *core = sess->core;
+ 	struct amvdec_ops *vdec_ops = sess->fmt_out->vdec_ops;
+ 
+-	reset_control_reset(core->esparser_reset);
++	if (core->esparser_reset)
++		reset_control_reset(core->esparser_reset);
++	else
++		/*
++		 * ACPI: no OF reset provider - pulse RESET_PARSER directly
++		 * (EE reset controller bank 1 bit 8, self-clearing pulse
++		 * register mapped as _CRS index 2).
++		 */
++		writel(BIT(8), core->esparser_reset_base);
+ 	amvdec_write_parser(core, PARSER_CONFIG,
+ 			    (10 << PS_CFG_PFIFO_EMPTY_CNT_BIT) |
+ 			    (1  << PS_CFG_MAX_ES_WR_CYCLE_BIT) |
+@@ -443,7 +451,10 @@ int esparser_init(struct platform_device *pdev, struct amvdec_core *core)
+ 	int ret;
+ 	int irq;
+ 
+-	irq = platform_get_irq_byname(pdev, "esparser");
++	if (dev->of_node)
++		irq = platform_get_irq_byname(pdev, "esparser");
++	else
++		irq = platform_get_irq(pdev, 1);
+ 	if (irq < 0)
+ 		return irq;
+ 
+@@ -454,12 +465,15 @@ int esparser_init(struct platform_device *pdev, struct amvdec_core *core)
+ 		return ret;
+ 	}
+ 
+-	core->esparser_reset =
+-		devm_reset_control_get_exclusive(dev, "esparser");
+-	if (IS_ERR(core->esparser_reset)) {
+-		dev_err(dev, "Failed to get esparser_reset\n");
+-		return PTR_ERR(core->esparser_reset);
++	if (dev->of_node) {
++		core->esparser_reset =
++			devm_reset_control_get_exclusive(dev, "esparser");
++		if (IS_ERR(core->esparser_reset)) {
++			dev_err(dev, "Failed to get esparser_reset\n");
++			return PTR_ERR(core->esparser_reset);
++		}
+ 	}
++	/* else: core->esparser_reset stays NULL, the pulse register is used */
+ 
+ 	return 0;
+ }
+diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
+index 2aa2ad018208..50ae6432051d 100644
+--- a/drivers/staging/media/meson/vdec/vdec.c
++++ b/drivers/staging/media/meson/vdec/vdec.c
+@@ -1024,7 +1024,6 @@ static int vdec_probe(struct platform_device *pdev)
+ 	struct device *dev = &pdev->dev;
+ 	struct video_device *vdev;
+ 	struct amvdec_core *core;
+-	const struct of_device_id *of_id;
+ 	int irq;
+ 	int ret;
+ 
+@@ -1035,53 +1034,118 @@ static int vdec_probe(struct platform_device *pdev)
+ 	core->dev = dev;
+ 	platform_set_drvdata(pdev, core);
+ 
+-	core->dos_base = devm_platform_ioremap_resource_byname(pdev, "dos");
+-	if (IS_ERR(core->dos_base))
+-		return PTR_ERR(core->dos_base);
+-
+-	core->esparser_base = devm_platform_ioremap_resource_byname(pdev, "esparser");
+-	if (IS_ERR(core->esparser_base))
+-		return PTR_ERR(core->esparser_base);
++	if (dev->of_node) {
++		core->dos_base = devm_platform_ioremap_resource_byname(pdev, "dos");
++		if (IS_ERR(core->dos_base))
++			return PTR_ERR(core->dos_base);
++
++		core->esparser_base =
++			devm_platform_ioremap_resource_byname(pdev, "esparser");
++		if (IS_ERR(core->esparser_base))
++			return PTR_ERR(core->esparser_base);
++
++		core->regmap_ao =
++			syscon_regmap_lookup_by_phandle(dev->of_node,
++							"amlogic,ao-sysctrl");
++		if (IS_ERR(core->regmap_ao)) {
++			dev_err(dev, "Couldn't regmap AO sysctrl\n");
++			return PTR_ERR(core->regmap_ao);
++		}
++	} else {
++		/*
++		 * ACPI (PRP0001): _CRS entries are unnamed, so index order
++		 * is the ABI (kept in the firmware's SsdtVdec.asl):
++		 *   [0] DOS  [1] esparser  [2] EE reset pulse bank 1
++		 *   [3] AO sysctrl window  [4] HHI window
++		 * The shared AO/HHI windows are mapped without claiming
++		 * (meson-drm precedent); the private AO regmap replaces the
++		 * DT syscon phandle, and the reset pulse register replaces
++		 * the OF reset control (RESET_PARSER = bank 1 bit 8).
++		 */
++		static const struct regmap_config vdec_acpi_ao_cfg = {
++			.reg_bits = 32,
++			.val_bits = 32,
++			.reg_stride = 4,
++			.max_register = 0xff,
++		};
++		struct resource *res;
++		void __iomem *base;
++
++		core->dos_base = devm_platform_ioremap_resource(pdev, 0);
++		if (IS_ERR(core->dos_base))
++			return PTR_ERR(core->dos_base);
++
++		core->esparser_base = devm_platform_ioremap_resource(pdev, 1);
++		if (IS_ERR(core->esparser_base))
++			return PTR_ERR(core->esparser_base);
++
++		core->esparser_reset_base =
++			devm_platform_ioremap_resource(pdev, 2);
++		if (IS_ERR(core->esparser_reset_base))
++			return PTR_ERR(core->esparser_reset_base);
++
++		res = platform_get_resource(pdev, IORESOURCE_MEM, 3);
++		if (!res)
++			return -ENODEV;
++		base = devm_ioremap(dev, res->start, resource_size(res));
++		if (!base)
++			return -ENOMEM;
++		core->regmap_ao = devm_regmap_init_mmio(dev, base,
++							&vdec_acpi_ao_cfg);
++		if (IS_ERR(core->regmap_ao)) {
++			dev_err(dev, "Couldn't regmap AO sysctrl\n");
++			return PTR_ERR(core->regmap_ao);
++		}
+ 
+-	core->regmap_ao =
+-		syscon_regmap_lookup_by_phandle(dev->of_node,
+-						"amlogic,ao-sysctrl");
+-	if (IS_ERR(core->regmap_ao)) {
+-		dev_err(dev, "Couldn't regmap AO sysctrl\n");
+-		return PTR_ERR(core->regmap_ao);
++		res = platform_get_resource(pdev, IORESOURCE_MEM, 4);
++		if (!res)
++			return -ENODEV;
++		base = devm_ioremap(dev, res->start, resource_size(res));
++		if (!base)
++			return -ENOMEM;
++		ret = vdec_acpi_init_clks(core, base);
++		if (ret)
++			return ret;
+ 	}
+ 
+ 	core->canvas = meson_canvas_get(dev);
+ 	if (IS_ERR(core->canvas))
+ 		return PTR_ERR(core->canvas);
+ 
+-	of_id = of_match_node(vdec_dt_match, dev->of_node);
+-	core->platform = of_id->data;
++	core->platform = device_get_match_data(dev);
++	if (!core->platform)
++		return -ENODEV;
+ 
+-	if (core->platform->revision == VDEC_REVISION_G12A ||
+-	    core->platform->revision == VDEC_REVISION_SM1) {
+-		core->vdec_hevcf_clk = devm_clk_get(dev, "vdec_hevcf");
+-		if (IS_ERR(core->vdec_hevcf_clk))
+-			return -EPROBE_DEFER;
+-	}
++	if (dev->of_node) {
++		if (core->platform->revision == VDEC_REVISION_G12A ||
++		    core->platform->revision == VDEC_REVISION_SM1) {
++			core->vdec_hevcf_clk = devm_clk_get(dev, "vdec_hevcf");
++			if (IS_ERR(core->vdec_hevcf_clk))
++				return -EPROBE_DEFER;
++		}
+ 
+-	core->dos_parser_clk = devm_clk_get(dev, "dos_parser");
+-	if (IS_ERR(core->dos_parser_clk))
+-		return -EPROBE_DEFER;
++		core->dos_parser_clk = devm_clk_get(dev, "dos_parser");
++		if (IS_ERR(core->dos_parser_clk))
++			return -EPROBE_DEFER;
+ 
+-	core->dos_clk = devm_clk_get(dev, "dos");
+-	if (IS_ERR(core->dos_clk))
+-		return -EPROBE_DEFER;
++		core->dos_clk = devm_clk_get(dev, "dos");
++		if (IS_ERR(core->dos_clk))
++			return -EPROBE_DEFER;
+ 
+-	core->vdec_1_clk = devm_clk_get(dev, "vdec_1");
+-	if (IS_ERR(core->vdec_1_clk))
+-		return -EPROBE_DEFER;
++		core->vdec_1_clk = devm_clk_get(dev, "vdec_1");
++		if (IS_ERR(core->vdec_1_clk))
++			return -EPROBE_DEFER;
+ 
+-	core->vdec_hevc_clk = devm_clk_get(dev, "vdec_hevc");
+-	if (IS_ERR(core->vdec_hevc_clk))
+-		return -EPROBE_DEFER;
++		core->vdec_hevc_clk = devm_clk_get(dev, "vdec_hevc");
++		if (IS_ERR(core->vdec_hevc_clk))
++			return -EPROBE_DEFER;
++	}
++	/* else: the local clock island filled core->*_clk already */
+ 
+-	irq = platform_get_irq_byname(pdev, "vdec");
++	if (dev->of_node)
++		irq = platform_get_irq_byname(pdev, "vdec");
++	else
++		irq = platform_get_irq(pdev, 0);
+ 	if (irq < 0)
+ 		return irq;
+ 
+diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/meson/vdec/vdec.h
+index 7a5d8e871d70..7c3b76490dd6 100644
+--- a/drivers/staging/media/meson/vdec/vdec.h
++++ b/drivers/staging/media/meson/vdec/vdec.h
+@@ -85,6 +85,8 @@ struct amvdec_core {
+ 	struct clk *vdec_hevcf_clk;
+ 
+ 	struct reset_control *esparser_reset;
++	/* ACPI: EE reset pulse register replacing esparser_reset */
++	void __iomem *esparser_reset_base;
+ 
+ 	struct video_device *vdev_dec;
+ 	struct v4l2_device v4l2_dev;
+@@ -289,4 +291,6 @@ static inline struct amvdec_session *file_to_amvdec_session(struct file *filp)
+ 
+ u32 amvdec_get_output_size(struct amvdec_session *sess);
+ 
++int vdec_acpi_init_clks(struct amvdec_core *core, void __iomem *hhi);
++
+ #endif
+diff --git a/drivers/staging/media/meson/vdec/vdec_acpi.c b/drivers/staging/media/meson/vdec/vdec_acpi.c
+new file mode 100644
+index 000000000000..2cc6abea3def
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/vdec_acpi.c
+@@ -0,0 +1,143 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * ACPI (PRP0001) support for the Amlogic G12 video decoder: a local
++ * clock island over the HHI window.
++ *
++ * Under ACPI there is no clock provider - the main G12 clock
++ * controller is never ported; firmware pre-configures fixed state and
++ * each driver models exactly the clocks it owns.  The decoder needs
++ * five: the dos / dos_parser bus gates (HHI_GCLK_MPEG0/1) and the
++ * vdec_1 / vdec_hevc / vdec_hevcf composite clocks (mux + divider +
++ * gate in HHI_VDEC_CLK_CNTL / HHI_VDEC2_CLK_CNTL).
++ *
++ * Only the always-running fixed fclk_div fixed_pll children are
++ * modelled as mux parents.  In DT the same mux carries
++ * CLK_SET_RATE_PARENT down to the HIFI/GP0 PLL DCOs and the CCF has
++ * been observed parking vdec_1 on HIFI_PLL; here a rate request can
++ * pick only a fixed parent (666666666 lands exactly on fclk_div3),
++ * so PLL escape is impossible by construction.
++ *
++ * Register ownership: this island owns HHI 0x1e0/0x1e4 and RMWs one
++ * bit each in GCLK_MPEG0/1 under its own spinlock - see the firmware
++ * repo's HHI register ownership table before adding any overlap.
++ */
++
++#include <linux/clk.h>
++#include <linux/clk-provider.h>
++#include <linux/device.h>
++#include <linux/io.h>
++
++#include "vdec.h"
++
++#define HHI_GCLK_MPEG0		0x140
++#define HHI_GCLK_MPEG1		0x144
++#define HHI_VDEC_CLK_CNTL	0x1e0
++#define HHI_VDEC2_CLK_CNTL	0x1e4
++
++static DEFINE_SPINLOCK(vdec_acpi_hhi_lock);
++
++struct vdec_acpi_fixed {
++	const char *name;
++	unsigned long rate;
++};
++
++/* fixed_pll (2 GHz) post-dividers, mux order per g12a_vdec_parents */
++static const struct vdec_acpi_fixed vdec_acpi_parents[] = {
++	{ "vdec_acpi_fdiv2p5", 800000000 },
++	{ "vdec_acpi_fdiv3",   666666666 },
++	{ "vdec_acpi_fdiv4",   500000000 },
++	{ "vdec_acpi_fdiv5",   400000000 },
++	{ "vdec_acpi_fdiv7",   285714285 },
++};
++
++static struct clk *vdec_acpi_composite(struct device *dev,
++				       void __iomem *reg,
++				       const char *stem,
++				       const char * const *parent_names,
++				       u8 mux_shift, u8 div_shift,
++				       u8 gate_bit)
++{
++	struct clk_hw *mux, *div, *gate;
++	char name[32];
++
++	snprintf(name, sizeof(name), "%s_sel", stem);
++	mux = devm_clk_hw_register_mux(dev, name, parent_names,
++				       ARRAY_SIZE(vdec_acpi_parents),
++				       CLK_MUX_ROUND_CLOSEST,
++				       reg, mux_shift, 0x7, 0,
++				       &vdec_acpi_hhi_lock);
++	if (IS_ERR(mux))
++		return ERR_CAST(mux);
++
++	snprintf(name, sizeof(name), "%s_div", stem);
++	div = devm_clk_hw_register_divider(dev, name,
++					   clk_hw_get_name(mux),
++					   CLK_SET_RATE_PARENT,
++					   reg, div_shift, 7,
++					   CLK_DIVIDER_ROUND_CLOSEST,
++					   &vdec_acpi_hhi_lock);
++	if (IS_ERR(div))
++		return ERR_CAST(div);
++
++	gate = devm_clk_hw_register_gate(dev, stem, clk_hw_get_name(div),
++					 CLK_SET_RATE_PARENT,
++					 reg, gate_bit, 0,
++					 &vdec_acpi_hhi_lock);
++	if (IS_ERR(gate))
++		return ERR_CAST(gate);
++
++	return gate->clk;
++}
++
++int vdec_acpi_init_clks(struct amvdec_core *core, void __iomem *hhi)
++{
++	struct device *dev = core->dev;
++	const char *parent_names[ARRAY_SIZE(vdec_acpi_parents)];
++	struct clk_hw *hw;
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(vdec_acpi_parents); i++) {
++		hw = devm_clk_hw_register_fixed_rate(dev,
++					vdec_acpi_parents[i].name, NULL, 0,
++					vdec_acpi_parents[i].rate);
++		if (IS_ERR(hw))
++			return PTR_ERR(hw);
++		parent_names[i] = vdec_acpi_parents[i].name;
++	}
++
++	hw = devm_clk_hw_register_gate(dev, "vdec_acpi_dos", NULL, 0,
++				       hhi + HHI_GCLK_MPEG0, 1, 0,
++				       &vdec_acpi_hhi_lock);
++	if (IS_ERR(hw))
++		return PTR_ERR(hw);
++	core->dos_clk = hw->clk;
++
++	hw = devm_clk_hw_register_gate(dev, "vdec_acpi_dos_parser", NULL, 0,
++				       hhi + HHI_GCLK_MPEG1, 25, 0,
++				       &vdec_acpi_hhi_lock);
++	if (IS_ERR(hw))
++		return PTR_ERR(hw);
++	core->dos_parser_clk = hw->clk;
++
++	core->vdec_1_clk = vdec_acpi_composite(dev, hhi + HHI_VDEC_CLK_CNTL,
++					       "vdec_acpi_vdec_1",
++					       parent_names, 9, 0, 8);
++	if (IS_ERR(core->vdec_1_clk))
++		return PTR_ERR(core->vdec_1_clk);
++
++	core->vdec_hevcf_clk = vdec_acpi_composite(dev,
++						   hhi + HHI_VDEC2_CLK_CNTL,
++						   "vdec_acpi_vdec_hevcf",
++						   parent_names, 9, 0, 8);
++	if (IS_ERR(core->vdec_hevcf_clk))
++		return PTR_ERR(core->vdec_hevcf_clk);
++
++	core->vdec_hevc_clk = vdec_acpi_composite(dev,
++						  hhi + HHI_VDEC2_CLK_CNTL,
++						  "vdec_acpi_vdec_hevc",
++						  parent_names, 25, 16, 24);
++	if (IS_ERR(core->vdec_hevc_clk))
++		return PTR_ERR(core->vdec_hevc_clk);
++
++	return 0;
++}
+\ No newline at end of file

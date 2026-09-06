@@ -1,0 +1,38 @@
+From: Gus Bourg <gus@bourg.net>
+Date: Wed, 2 Sep 2026 17:30:00 -0700
+Subject: [PATCH] Bluetooth: hci_bcm: honor max-speed on ACPI-enumerated devices
+
+The ACPI resource walk hardcodes oper_speed = 4000000 when it sees the
+UART serial bus resource.  Devicetree platforms describe the rate the
+board actually supports through the "max-speed" property, and
+bcm_of_probe() reads it - but a board enumerated via ACPI (PRP0001 or
+otherwise) with a "max-speed" _DSD property had it silently ignored,
+and setup tried 4 MBaud against hardware validated for less.
+
+Read the property after the resource walk so it overrides the default,
+exactly as the DT path does.  Boards without the property keep the
+4000000 default.
+
+Validated on a Khadas VIM3 (BCM4359 on uart_A, PRP0001 serdev child):
+without this the vendor clock/baud commands fail and setup falls back
+to 115200; with it the link runs at the described 2 MBaud with
+hardware flow control.
+---
+diff --git a/drivers/bluetooth/hci_bcm.c b/drivers/bluetooth/hci_bcm.c
+index 9a103db7e355..d60bdc1e66aa 100644
+--- a/drivers/bluetooth/hci_bcm.c
++++ b/drivers/bluetooth/hci_bcm.c
+@@ -1207,6 +1207,13 @@ static int bcm_acpi_probe(struct bcm_device *dev)
+ 	if (ret)
+ 		return ret;
+ 
++	/*
++	 * The UART resource walk above defaults oper_speed to 4000000.
++	 * Boards enumerated via PRP0001 describe the supported rate the
++	 * same way devicetree does - honor it, as bcm_of_probe() would.
++	 */
++	device_property_read_u32(dev->dev, "max-speed", &dev->oper_speed);
++
+ 	if (irq_polarity != -1) {
+ 		dev->irq_active_low = irq_polarity;
+ 		dev_warn(dev->dev, "Overwriting IRQ polarity to active %s by module-param\n",
