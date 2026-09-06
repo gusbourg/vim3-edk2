@@ -186,7 +186,7 @@ the pinned image is not redistributed here.
 ### `patches/linux/` — required for ACPI mode
 
 42 patches against 7.0.x, with 37 of them rebased for 6.18.x under
-`patches/linux/6.18/`, and the current 60-patch series against **v7.3-rc1**
+`patches/linux/6.18/`, and the current 63-patch series against **v7.3-rc1**
 under `patches/linux/7.3/` (see below). Broadly:
 
 **ACPI enablement (PRP0001 probe support).** Each PRP0001 device the firmware
@@ -241,7 +241,7 @@ ACPI machine driver replacing the OF-only `axg-card`).
 
 ### `patches/linux/7.3/` — the current series, against v7.3-rc1
 
-60 patches, all verified to apply to a pristine `v7.3-rc1` tree. This is the
+63 patches, all verified to apply to a pristine `v7.3-rc1` tree. This is the
 series the board is actually running; the 7.0.x set above is kept for that
 kernel. Differences from 7.0.x worth knowing:
 
@@ -250,7 +250,7 @@ kernel. Differences from 7.0.x worth knowing:
   `0045`–`0047`: a PRP0001 match, a fwnode-based `compatible` match so
   `core_type` is set under ACPI, and a fixed-rate CSR clock. Without these the
   MAC probes as DWMAC100 and MDIO registration fails with `-EIO`.
-* The video-decode work is substantially extended — 31 meson-vdec patches.
+* The video-decode work is substantially extended — 34 meson-vdec patches.
 
 Notable decoder fixes in this series. Verification status is stated per patch
 rather than claimed for the set:
@@ -263,23 +263,29 @@ rather than claimed for the set:
 | `0058` | Restart stall recovery the way a cold start does. Recovery wrote `ACTION_DONE` into the status register before starting the firmware; that value is a reply to a raised interrupt and is only collected alongside an MCPU kick, so after a reset the firmware never read it and sat. |
 | `0059` | Do not demand that *every* CAPTURE buffer be queued before streaming. `vb2_core_streamon()` defers the driver's `start_streaming()` until `queued_count >= min_queued_buffers`; a zero-copy renderer holds frames across a seek, so the callback never fired, `resume()` never ran, and the picture froze while the player's clock ran on. Also writes the ANC2AXI canvas table densely by index — it is index-addressed, and the all-queued rule was hiding that. |
 | `0060` | Recycle buffers by firmware index, not vb2 index. The firmware addresses CAPTURE buffers by the canvas slot from `amvdec_set_canvases()`, but the recycle thread passed `vb->index` with no conversion and the driver had no reverse map. The two spaces match only while buffers are queued in index order — true on a first play, false after a seek. Freeing the wrong slot let the firmware overwrite a buffer the display was still scanning out. **This bug is present in mainline `v7.3-rc1`** and affects MPEG-1/2 and H.264. |
-
+| `0061` | Never recycle the on-screen FBC generation. The pool's CMA-pressure path spliced *both* parked generations onto the free list, including the one that may still be on a plane; it now recycles only the aged-out generation and fails the session with `-ENOMEM` otherwise. **Correct by inspection, unproven on hardware:** across every run so far the pressure path has never executed (`recycled=0`), even with CmaFree driven to 3 MB — the free/park rotation satisfied demand first. |
+| `0062` | VP9: do not take `vp9->lock` recursively on a source change. `codec_vp9_threaded_isr()` holds the lock and calls `amvdec_src_change()`, which calls `codec_vp9_resume()` directly when the capture queue already suits the stream — and that locks `vp9->lock` again. The vdec IRQ thread blocks on a mutex it owns; seeking a VP9 stream triggers it. **This bug is present in mainline `v7.3-rc1`.** Verified: hung-task reports 5 → 0 on the same seek test. HEVC and H.264 `resume()` take no codec lock. |
+| `0063` | Do not announce a source change that did not happen. `0025` had removed upstream's early `return`, so `SOURCE_CHANGE` fired even on the path that had just decided nothing changed. ffmpeg tags this driver `FF_V4L2_QUIRK_REINIT_ALWAYS` and reallocates the whole 4K capture set per event, which is what exhausts CMA under repeated seeks. Verified by fresh-boot A/B on a 4K HEVC clip: seek failures 5–6/10 → **0/10, 0/10**. Initial negotiation is unchanged (`streamon_cap` is still 0 then). |
 | `0055` | Treat a firmware idle with queued input as a stall, instead of assuming starvation. Verified: the detector fires on the `ACTION_DONE` wedge it was written for. Its recovery path was then found broken — that is `0058`; the two belong together. |
 | `0056` | Five fixes on the path a decoder takes after losing its place: ESPARSER credit starving a resync, a discarded `setup_buffers()` error, a stall oracle that could not see a wedge, and CMA contention for the workspace and the FBC pool. Verified on VIM3 per its own commit message. |
 | `0057` | Resume on CAPTURE STREAMON without also demanding `changed_format`, which only gets set by a fresh REQBUFS — the stateful decoder interface does not require that. **Not independently verified on hardware**; it is live in the tree that passes the seek tests, so it is verified in aggregate but never isolated. |
 
 **Known-open, in this series:**
 
-`0041` adds a shared pool for FBC chunks, and under real CMA exhaustion its
-pressure path (`fbc_chunk_get_pressure_locked()`) splices *parked* generations
-back onto the free list and hands them out — a generation that may still be on
-screen. With `debug_pagealloc=on slub_debug=FZP` this reproduces as page
-metadata corruption (`BUG` in `set_buddy_order` / `is_free_buddy_page` from an
-unrelated allocator-heavy process), i.e. a double free or free-while-referenced
-of a CMA page. It needs *artificial* exhaustion to trigger — ten rapid seeks, or
-seeks plus a multi-gigabyte write — and normal playback does not approach it,
-but it is real and unfixed. Candidate fixes: stop recycling parked chunks under
-pressure, or refcount them so an on-screen generation is never handed out.
+*4K seeking is bounded by CMA, not by correctness.* A seek storm on a 4K
+stream drives CmaFree from ~850 MB to ~24 MB and the decoder then stops
+allocating while the player's clock runs on — a frozen picture that reads
+like a firmware wedge and is not one. Nothing leaks (stopping the player
+returns ~740 MB within seconds); the working set is simply held several times
+over — the live session, a parked FBC generation from `0041`, and the capture
+set the client reallocates. `0063` removes the redundant reallocation and
+takes HEVC 4K seek from 5–6/10 failures to 0/10 on this board, but a 4K
+session plus a parked generation is still most of 896 MB.
+
+`0041`'s pressure path, which `0061` restricts, has never been observed to
+execute; the page-metadata corruption seen earlier under
+`debug_pagealloc=on` was reproduced only on a kernel without `0061` and has
+not been reproduced since. Treat `0061` as unverified rather than as fixed.
 
 ### `patches/upstream/` — not ACPI-specific
 
